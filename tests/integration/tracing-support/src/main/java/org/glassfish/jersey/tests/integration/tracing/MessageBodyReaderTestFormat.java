@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2013-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -61,6 +61,16 @@ import org.glassfish.jersey.message.MessageUtils;
 @Provider
 @Consumes(Utils.APPLICATION_X_JERSEY_TEST)
 public class MessageBodyReaderTestFormat implements MessageBodyReader<Message> {
+
+    boolean serverSide = true;
+
+    public MessageBodyReaderTestFormat() {
+    }
+
+    public MessageBodyReaderTestFormat(final boolean serverSide) {
+        this.serverSide = serverSide;
+    }
+
     @Override
     public boolean isReadable(final Class<?> type, final Type genericType, final Annotation[] annotations,
                               final MediaType mediaType) {
@@ -75,10 +85,18 @@ public class MessageBodyReaderTestFormat implements MessageBodyReader<Message> {
 
         final String line = reader.readLine();
         if (line == null || !line.startsWith(Utils.FORMAT_PREFIX) || !line.endsWith(Utils.FORMAT_SUFFIX)) {
-            throw new WebApplicationException
-                    (new IllegalArgumentException("Input content '" + line + "' is not in a valid format!"));
+            throw new WebApplicationException(
+                    new IllegalArgumentException("Input content '" + line + "' is not in a valid format!"));
+        }
+        final String text = line.substring(Utils.FORMAT_PREFIX.length(), line.length() - Utils.FORMAT_SUFFIX.length());
+
+        if (serverSide) {
+            Utils.throwException(text, this,
+                    Utils.TestAction.MESSAGE_BODY_READER_THROW_WEB_APPLICATION,
+                    Utils.TestAction.MESSAGE_BODY_READER_THROW_PROCESSING,
+                    Utils.TestAction.MESSAGE_BODY_READER_THROW_ANY);
         }
 
-        return new Message(line.substring(Utils.FORMAT_PREFIX.length(), line.length() - Utils.FORMAT_SUFFIX.length()));
+        return new Message(text);
     }
 }

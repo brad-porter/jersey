@@ -85,6 +85,7 @@ import jersey.repackaged.com.google.common.collect.Sets;
  * @author Miroslav Fuksa
  */
 public final class Providers {
+
     private static final Logger LOGGER = Logger.getLogger(Providers.class.getName());
 
     /**
@@ -197,7 +198,7 @@ public final class Providers {
      * @return set of all available service provider instances for the contract.
      */
     public static <T> Set<T> getCustomProviders(final ServiceLocator locator, final Class<T> contract) {
-        final Collection<ServiceHandle<T>> hk2Providers = getServiceHandles(locator, contract, new CustomAnnotationImpl());
+        final Collection<ServiceHandle<T>> hk2Providers = getServiceHandles(locator, contract, CustomAnnotationLiteral.INSTANCE);
         return getClasses(hk2Providers);
     }
 
@@ -224,7 +225,7 @@ public final class Providers {
      * @return iterable of all available ranked service providers for the contract. Return value is never null.
      */
     public static <T> Iterable<RankedProvider<T>> getAllRankedProviders(final ServiceLocator locator, final Class<T> contract) {
-        final List<ServiceHandle<T>> providers = getServiceHandles(locator, contract, new CustomAnnotationImpl());
+        final List<ServiceHandle<T>> providers = getServiceHandles(locator, contract, CustomAnnotationLiteral.INSTANCE);
         providers.addAll(getServiceHandles(locator, contract));
 
         final LinkedHashMap<ActiveDescriptor<T>, RankedProvider<T>> providerMap =
@@ -237,12 +238,13 @@ public final class Providers {
                 final Class<?> implementationClass = key.getImplementationClass();
                 boolean proxyGenerated = true;
                 for (Type ct : contractTypes) {
-                    if (((Class<?>)ct).isAssignableFrom(implementationClass)) {
+                    if (((Class<?>) ct).isAssignableFrom(implementationClass)) {
                         proxyGenerated = false;
                         break;
                     }
                 }
-                providerMap.put(key, new RankedProvider<T>(provider.getService(), key.getRanking(), proxyGenerated ? contractTypes : null));
+                providerMap.put(key,
+                        new RankedProvider<T>(provider.getService(), key.getRanking(), proxyGenerated ? contractTypes : null));
             }
         }
 
@@ -319,8 +321,8 @@ public final class Providers {
     }
 
     /**
-     * Get collection of all {@link ServiceHandle}s bound for providers (custom and default) registered for the given service provider contract
-     * in the underlying {@link ServiceLocator HK2 service locator} container.
+     * Get collection of all {@link ServiceHandle}s bound for providers (custom and default) registered for the given service
+     * provider contract in the underlying {@link ServiceLocator HK2 service locator} container.
      *
      * @param <T>        service provider contract Java type.
      * @param locator    underlying HK2 service locator.
@@ -328,7 +330,7 @@ public final class Providers {
      * @return set of all available service provider instances for the contract
      */
     public static <T> Collection<ServiceHandle<T>> getAllServiceHandles(final ServiceLocator locator, final Class<T> contract) {
-        final List<ServiceHandle<T>> providers = getServiceHandles(locator, contract, new CustomAnnotationImpl());
+        final List<ServiceHandle<T>> providers = getServiceHandles(locator, contract, CustomAnnotationLiteral.INSTANCE);
         providers.addAll(getServiceHandles(locator, contract));
 
         final LinkedHashMap<ActiveDescriptor, ServiceHandle<T>> providerMap =
@@ -345,11 +347,11 @@ public final class Providers {
     }
 
     private static <T> List<ServiceHandle<T>> getServiceHandles(final ServiceLocator locator, final Class<T> contract,
-                                                                   final Annotation... qualifiers) {
+                                                                final Annotation... qualifiers) {
 
-        final List<ServiceHandle<T>> allServiceHandles = qualifiers == null ?
-                locator.getAllServiceHandles(contract) :
-                locator.getAllServiceHandles(contract, qualifiers);
+        final List<ServiceHandle<T>> allServiceHandles = qualifiers == null
+                ? locator.getAllServiceHandles(contract)
+                : locator.getAllServiceHandles(contract, qualifiers);
 
         final ArrayList<ServiceHandle<T>> serviceHandles = new ArrayList<ServiceHandle<T>>();
         for (final ServiceHandle handle : allServiceHandles) {
@@ -370,7 +372,9 @@ public final class Providers {
      * @return set of all available service provider instances for the contract ordered using the given
      * {@link Comparator comparator}.
      */
-    public static <T> Iterable<T> getAllProviders(final ServiceLocator locator, final Class<T> contract, final Comparator<T> comparator) {
+    public static <T> Iterable<T> getAllProviders(final ServiceLocator locator,
+                                                  final Class<T> contract,
+                                                  final Comparator<T> comparator) {
 
         final List<T> providerList = new ArrayList<T>(getClasses(getAllServiceHandles(locator, contract)));
 
@@ -400,7 +404,9 @@ public final class Providers {
      *                   set.
      * @return set of all available service provider instances for the contract.
      */
-    public static <T> SortedSet<T> getProviders(final ServiceLocator locator, final Class<T> contract, final Comparator<T> comparator) {
+    public static <T> SortedSet<T> getProviders(final ServiceLocator locator,
+                                                final Class<T> contract,
+                                                final Comparator<T> comparator) {
         final Collection<ServiceHandle<T>> hk2Providers = getServiceHandles(locator, contract);
         if (hk2Providers.isEmpty()) {
             return Sets.newTreeSet(comparator);
@@ -460,7 +466,6 @@ public final class Providers {
         final ConstrainedTo constrainedTo = component.getAnnotation(ConstrainedTo.class);
         final RuntimeType componentConstraint = constrainedTo == null ? null : constrainedTo.value();
         if (Feature.class.isAssignableFrom(component)) {
-            // TODO: solve after implementation
             return true;
         }
 
@@ -479,11 +484,12 @@ public final class Providers {
 
                 if (componentConstraint != null) {
                     if (contractConstraint != componentConstraint) {
+                        //noinspection ConstantConditions
                         warnings.append(LocalizationMessages.WARNING_PROVIDER_CONSTRAINED_TO_WRONG_PACKAGE(
                                 component.getName(),
                                 componentConstraint.name(),
                                 contract.getName(),
-                                contractConstraint.name()))
+                                contractConstraint.name())) // is never null
                                 .append(" ");
                     } else {
                         foundComponentCompatible = true;
@@ -492,9 +498,10 @@ public final class Providers {
             }
 
             if (!foundComponentCompatible) {
+                //noinspection ConstantConditions
                 warnings.append(LocalizationMessages.ERROR_PROVIDER_CONSTRAINED_TO_WRONG_PACKAGE(
                         component.getName(),
-                        componentConstraint.name()))
+                        componentConstraint.name())) // is never null
                         .append(" ");
                 logProviderSkipped(warnings, component, isResource);
                 return false;
@@ -533,10 +540,9 @@ public final class Providers {
     }
 
     private static void logProviderSkipped(final StringBuilder sb, final Class<?> provider, final boolean alsoResourceClass) {
-        sb.append(alsoResourceClass ?
-                LocalizationMessages.ERROR_PROVIDER_AND_RESOURCE_CONSTRAINED_TO_IGNORED(provider.getName()) :
-                LocalizationMessages.ERROR_PROVIDER_CONSTRAINED_TO_IGNORED(provider.getName()))
-                .append(" ");
+        sb.append(alsoResourceClass
+                ? LocalizationMessages.ERROR_PROVIDER_AND_RESOURCE_CONSTRAINED_TO_IGNORED(provider.getName())
+                : LocalizationMessages.ERROR_PROVIDER_CONSTRAINED_TO_IGNORED(provider.getName())).append(" ");
     }
 
     /**

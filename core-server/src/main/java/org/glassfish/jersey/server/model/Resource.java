@@ -133,6 +133,7 @@ public final class Resource implements Routed, ResourceModelComponent {
      * Immutable resource data holder.
      */
     private static class Data {
+
         private final List<String> names;
         private final String path;
         private final PathPattern pathPattern;
@@ -156,7 +157,7 @@ public final class Resource implements Routed, ResourceModelComponent {
          * @param childResources   child sub-resources.
          * @param handlerClasses   handler classes handling the resource methods.
          * @param handlerInstances handler instances handling the resource methods.
-         * @param extended
+         * @param extended         flag indicating whether the resource is extended
          */
         private Data(
                 final List<String> names,
@@ -165,15 +166,16 @@ public final class Resource implements Routed, ResourceModelComponent {
                 final ResourceMethod.Data locator,
                 final List<Data> childResources,
                 final Set<Class<?>> handlerClasses,
-                final Set<Object> handlerInstances, boolean extended) {
+                final Set<Object> handlerInstances,
+                boolean extended) {
 
             this.extended = extended;
 
             this.names = immutableCopy(names);
             this.path = path;
-            this.pathPattern = (path == null || path.isEmpty()) ?
-                    PathPattern.OPEN_ROOT_PATH_PATTERN :
-                    new PathPattern(path, PathPattern.RightHandPath.capturingZeroOrMoreSegments);
+            this.pathPattern = (path == null || path.isEmpty())
+                    ? PathPattern.OPEN_ROOT_PATH_PATTERN
+                    : new PathPattern(path, PathPattern.RightHandPath.capturingZeroOrMoreSegments);
             this.resourceMethods = Resource.immutableCopy(resourceMethods);
             this.locator = locator;
             this.childResources = Collections.unmodifiableList(childResources); // no need to deep-copy the list
@@ -184,8 +186,8 @@ public final class Resource implements Routed, ResourceModelComponent {
 
         @Override
         public String toString() {
-            return "Resource{" +
-                    ((path == null) ? "[unbound], " : "\"" + path + "\", ")
+            return "Resource{"
+                    + ((path == null) ? "[unbound], " : "\"" + path + "\", ")
                     + childResources.size() + " child resources, "
                     + resourceMethods.size() + " resource methods, "
                     + (locator == null ? "0" : "1") + " sub-resource locator, "
@@ -217,7 +219,6 @@ public final class Resource implements Routed, ResourceModelComponent {
 
         private boolean extended;
 
-
         private Builder(final Resource.Builder parentResource) {
             this.methodBuilders = Sets.newLinkedHashSet();
             this.childResourceBuilders = Sets.newLinkedHashSet();
@@ -245,12 +246,12 @@ public final class Resource implements Routed, ResourceModelComponent {
         }
 
         private boolean isEmpty() {
-            return this.path == null &&
-                    methodBuilders.isEmpty() &&
-                    childResourceBuilders.isEmpty() &&
-                    resourceMethods.isEmpty() &&
-                    childResources.isEmpty() &&
-                    resourceLocator == null;
+            return this.path == null
+                    && methodBuilders.isEmpty()
+                    && childResourceBuilders.isEmpty()
+                    && resourceMethods.isEmpty()
+                    && childResources.isEmpty()
+                    && resourceLocator == null;
         }
 
         /**
@@ -315,7 +316,6 @@ public final class Resource implements Routed, ResourceModelComponent {
             return builder;
         }
 
-
         /**
          * Add a new method model that is a copy of the given {@code resourceMethod}.
          * <p/>
@@ -326,10 +326,31 @@ public final class Resource implements Routed, ResourceModelComponent {
          *
          * @param resourceMethod The resource method based on which the new method builder
          *                       should be created.
-         *
          * @return a new resource method builder.
          */
         public ResourceMethod.Builder addMethod(ResourceMethod resourceMethod) {
+            ResourceMethod.Builder builder = new ResourceMethod.Builder(this, resourceMethod);
+            methodBuilders.add(builder);
+            return builder;
+        }
+
+        /**
+         * Get a method builder for an existing resource method.
+         * <p/>
+         * The original method is removed from the resource and a builder based on it is added.
+         *
+         * @param resourceMethod The resource method to be replaced by a builder.
+         * @return a new resource method builder.
+         * @throws java.lang.IllegalArgumentException in case the method to be updated is not registered
+         *                                            in this resource builder.
+         * @since 2.18
+         */
+        public ResourceMethod.Builder updateMethod(ResourceMethod resourceMethod) {
+            final boolean removed = resourceMethods.remove(resourceMethod.getData());
+            if (!removed) {
+                throw new IllegalArgumentException(
+                        LocalizationMessages.RESOURCE_UPDATED_METHOD_DOES_NOT_EXIST(resourceMethod.toString()));
+            }
             ResourceMethod.Builder builder = new ResourceMethod.Builder(this, resourceMethod);
             methodBuilders.add(builder);
             return builder;
@@ -345,6 +366,7 @@ public final class Resource implements Routed, ResourceModelComponent {
          *
          * @param relativePath The path of the new child resource relative to this resource.
          * @return child resource builder.
+         * @throws java.lang.IllegalStateException in case the child resource for this path exists already.
          */
         public Builder addChildResource(String relativePath) {
             if (this.parentResource != null) {
@@ -356,7 +378,6 @@ public final class Resource implements Routed, ResourceModelComponent {
             return resourceBuilder;
         }
 
-
         /**
          * Add an existing Resource as a child resource of current resource.
          *
@@ -364,6 +385,23 @@ public final class Resource implements Routed, ResourceModelComponent {
          */
         public void addChildResource(Resource resource) {
             this.childResources.add(resource.data);
+        }
+
+        /**
+         * Replace an existing child resource with a newly supplied one.
+         *
+         * @param replacedResource old resource to be replaced.
+         * @param newResource      new resource to add.
+         * @throws java.lang.IllegalArgumentException in case there is no such child resource to be replaced.
+         * @since 2.18
+         */
+        public void replaceChildResource(Resource replacedResource, Resource newResource) {
+            final boolean removed = this.childResources.remove(replacedResource.data);
+            if (!removed) {
+                throw new IllegalArgumentException(
+                        LocalizationMessages.RESOURCE_REPLACED_CHILD_DOES_NOT_EXIST(replacedResource.toString()));
+            }
+            addChildResource(newResource);
         }
 
         /**
@@ -377,11 +415,10 @@ public final class Resource implements Routed, ResourceModelComponent {
             return this;
         }
 
-
         /**
          * Set the flag indicating whether the resource is extended or is a core of exposed RESTful API.
-         * The method defines the
-         * flag available at {@link org.glassfish.jersey.server.model.Resource#isExtended()}.
+         * <p/>
+         * The method defines the flag available at {@link org.glassfish.jersey.server.model.Resource#isExtended()}.
          * <p>
          * Extended resource model components are helper components that are not considered as a core of a
          * RESTful API. These can be for example {@code OPTIONS} {@link ResourceMethod resource methods}
@@ -396,14 +433,12 @@ public final class Resource implements Routed, ResourceModelComponent {
          * @param extended If {@code true} then resource is marked as extended.
          * @return updated builder object.
          * @see org.glassfish.jersey.server.model.ExtendedResource
-         *
          * @since 2.5.1
          */
         public Builder extended(boolean extended) {
             this.extended = extended;
             return this;
         }
-
 
         /**
          * Get the flag indicating whether the resource method is extended or is a core of exposed RESTful API.
@@ -488,8 +523,8 @@ public final class Resource implements Routed, ResourceModelComponent {
          */
         void onBuildMethod(ResourceMethod.Builder builder, ResourceMethod.Data methodData) {
             Preconditions.checkState(methodBuilders.remove(builder),
-                    "Resource.Builder.onBuildMethod() invoked from a resource method builder " +
-                            "that is not registered in the resource builder instance.");
+                    "Resource.Builder.onBuildMethod() invoked from a resource method builder "
+                            + "that is not registered in the resource builder instance.");
 
             switch (methodData.getType()) {
                 case RESOURCE_METHOD:
@@ -507,7 +542,6 @@ public final class Resource implements Routed, ResourceModelComponent {
                             }
                         });
 
-
                     }
                     resourceLocator = methodData;
                     break;
@@ -521,11 +555,10 @@ public final class Resource implements Routed, ResourceModelComponent {
             }
         }
 
-
         private void onBuildChildResource(Builder childResourceBuilder, Resource.Data childResourceData) {
             Preconditions.checkState(childResourceBuilders.remove(childResourceBuilder),
-                    "Resource.Builder.onBuildChildResource() invoked from a resource builder " +
-                            "that is not registered in the resource builder instance as a child resource builder.");
+                    "Resource.Builder.onBuildChildResource() invoked from a resource builder "
+                            + "that is not registered in the resource builder instance as a child resource builder.");
             childResources.add(childResourceData);
 
         }
@@ -577,7 +610,6 @@ public final class Resource implements Routed, ResourceModelComponent {
                 extended = true;
             }
 
-
             final Data resourceData = new Data(
                     names,
                     path,
@@ -585,7 +617,8 @@ public final class Resource implements Routed, ResourceModelComponent {
                     resourceLocator,
                     mergedChildResources,
                     classes,
-                    instances, extended);
+                    instances,
+                    extended);
 
             if (parentResource != null) {
                 parentResource.onBuildChildResource(this, resourceData);
@@ -650,7 +683,6 @@ public final class Resource implements Routed, ResourceModelComponent {
         return new Builder();
     }
 
-
     /**
      * Get a new resource model builder for a resource bound to a given path.
      *
@@ -699,7 +731,7 @@ public final class Resource implements Routed, ResourceModelComponent {
      *
      * @param resourceClass resource class to be modelled.
      * @return resource model builder initialized by the class or {@code null} if the
-     *         class does not represent a resource.
+     * class does not represent a resource.
      */
     public static Builder builder(Class<?> resourceClass) {
         return builder(resourceClass, false);
@@ -712,7 +744,7 @@ public final class Resource implements Routed, ResourceModelComponent {
      * @param resourceClass     resource class to be modelled.
      * @param disableValidation if set to {@code true}, then any model validation checks will be disabled.
      * @return resource model builder initialized by the class or {@code null} if the
-     *         class does not represent a resource.
+     * class does not represent a resource.
      */
     public static Builder builder(Class<?> resourceClass, boolean disableValidation) {
         final Builder builder = new IntrospectionModeller(resourceClass, disableValidation).createResourceBuilder();
@@ -725,7 +757,7 @@ public final class Resource implements Routed, ResourceModelComponent {
      *
      * @param resourceClass resource class to be modelled.
      * @return resource model initialized by the class or {@code null} if the
-     *         class does not represent a resource.
+     * class does not represent a resource.
      */
     public static Resource from(Class<?> resourceClass) {
         return from(resourceClass, false);
@@ -738,7 +770,7 @@ public final class Resource implements Routed, ResourceModelComponent {
      * @param resourceClass     resource class to be modelled.
      * @param disableValidation if set to {@code true}, then any model validation checks will be disabled.
      * @return resource model initialized by the class or {@code null} if the
-     *         class does not represent a resource.
+     * class does not represent a resource.
      */
     public static Resource from(Class<?> resourceClass, boolean disableValidation) {
         final Builder builder = new IntrospectionModeller(resourceClass, disableValidation).createResourceBuilder();
@@ -760,17 +792,16 @@ public final class Resource implements Routed, ResourceModelComponent {
      *
      * @param c class to be checked.
      * @return {@code true} if the class is an acceptable JAX-RS provider or
-     *         resource, {@code false} otherwise.
+     * resource, {@code false} otherwise.
      */
     public static boolean isAcceptable(Class<?> c) {
         return !((c.getModifiers() & Modifier.ABSTRACT) != 0
-                || c.isPrimitive()
-                || c.isAnnotation()
-                || c.isInterface()
-                || c.isLocalClass()
-                || (c.isMemberClass() && (c.getModifiers() & Modifier.STATIC) == 0));
+                         || c.isPrimitive()
+                         || c.isAnnotation()
+                         || c.isInterface()
+                         || c.isLocalClass()
+                         || (c.isMemberClass() && (c.getModifiers() & Modifier.STATIC) == 0));
     }
-
 
     /**
      * Get the resource class {@link Path @Path} annotation.
@@ -779,7 +810,7 @@ public final class Resource implements Routed, ResourceModelComponent {
      *
      * @param resourceClass resource class.
      * @return {@code @Path} annotation instance if present on the resource class (i.e.
-     *         the class is a root resource class), or {@code null} otherwise.
+     * the class is a root resource class), or {@code null} otherwise.
      */
     public static Path getPath(Class<?> resourceClass) {
         return ModelHelper.getAnnotatedResourceClass(resourceClass).getAnnotation(Path.class);
@@ -920,7 +951,6 @@ public final class Resource implements Routed, ResourceModelComponent {
         return resourceMethods;
     }
 
-
     /**
      * Provides a resource locator available on the resource.
      *
@@ -983,18 +1013,20 @@ public final class Resource implements Routed, ResourceModelComponent {
     }
 
     /**
-     * Get the flag indicating whether the resource is extended or is a core of exposed RESTful API.
+     * Get the flag indicating whether the resource is extended.
+     * <p/>
+     * I.e. it is not part of the resource set that forms the REST API explicitly defined by the application developer (resource
+     * classes and instances returned from the {@link javax.ws.rs.core.Application} subclass getters).
      * <p>
-     * Extended resource model components are helper components that are not considered as a core of a
-     * RESTful API. These can be for example {@code OPTIONS} {@link ResourceMethod resource methods}
-     * added by {@link org.glassfish.jersey.server.model.ModelProcessor model processors}
-     * or {@code application.wadl} resource producing the WADL. Both resource are rather supportive
-     * than the core of RESTful API.
+     * Extended resource model components are helper components that are not part of the explicitly defined REST API of
+     * a JAX-RS application, instead they are generated by Jersey runtime. For example, extended resource model components
+     * include {@code OPTIONS} {@link ResourceMethod resource methods}
+     * automatically generated by Jersey {@link org.glassfish.jersey.server.model.ModelProcessor resource model processors}
+     * or {@code application.wadl} resource API that exposes the application WADL descriptor.
      * </p>
      *
-     * @return {@code true} if the resource is extended.
+     * @return {@code true} if the resource is part of the application's extended REST API, {@code false} otherwise.
      * @see org.glassfish.jersey.server.model.ExtendedResource
-     *
      * @since 2.5.1
      */
     public boolean isExtended() {

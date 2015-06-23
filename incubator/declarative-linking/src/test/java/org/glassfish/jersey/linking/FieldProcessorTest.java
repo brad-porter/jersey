@@ -58,8 +58,10 @@ import javax.ws.rs.core.Link;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.PathSegment;
 import javax.ws.rs.core.UriBuilder;
+
 import javax.xml.bind.annotation.XmlTransient;
 
+import org.glassfish.jersey.internal.util.collection.MultivaluedStringMap;
 import org.glassfish.jersey.linking.mapping.ResourceMappingContext;
 import org.glassfish.jersey.server.ExtendedUriInfo;
 import org.glassfish.jersey.server.model.Resource;
@@ -81,7 +83,9 @@ public class FieldProcessorTest {
 
     ExtendedUriInfo mockUriInfo = new ExtendedUriInfo() {
 
-        private final static String baseURI = "http://example.com/application/resources";
+        private static final String baseURI = "http://example.com/application/resources";
+
+        private MultivaluedMap queryParams = new MultivaluedStringMap();
 
         @Override
         public String getPath() {
@@ -135,22 +139,22 @@ public class FieldProcessorTest {
 
         @Override
         public MultivaluedMap<String, String> getPathParameters() {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return new MultivaluedStringMap();
         }
 
         @Override
         public MultivaluedMap<String, String> getPathParameters(boolean decode) {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return new MultivaluedStringMap();
         }
 
         @Override
         public MultivaluedMap<String, String> getQueryParameters() {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return queryParams;
         }
 
         @Override
         public MultivaluedMap<String, String> getQueryParameters(boolean decode) {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return queryParams;
         }
 
         @Override
@@ -239,10 +243,10 @@ public class FieldProcessorTest {
         }
     };
 
-
-    private final static String TEMPLATE_A = "foo";
+    private static final String TEMPLATE_A = "foo";
 
     public static class TestClassD {
+
         @InjectLink(value = TEMPLATE_A, style = InjectLink.Style.RELATIVE_PATH)
         private String res1;
 
@@ -261,9 +265,10 @@ public class FieldProcessorTest {
         assertEquals(TEMPLATE_A, testClass.res2.toString());
     }
 
-    private final static String TEMPLATE_B = "widgets/{id}";
+    private static final String TEMPLATE_B = "widgets/{id}";
 
     public static class TestClassE {
+
         @InjectLink(value = TEMPLATE_B, style = InjectLink.Style.RELATIVE_PATH)
         private String link;
 
@@ -288,6 +293,7 @@ public class FieldProcessorTest {
     }
 
     public static class TestClassF {
+
         @InjectLink(value = TEMPLATE_B, style = InjectLink.Style.RELATIVE_PATH)
         private String thelink;
 
@@ -340,6 +346,7 @@ public class FieldProcessorTest {
     }
 
     public static class TestClassG {
+
         @InjectLink(value = TEMPLATE_B, style = InjectLink.Style.RELATIVE_PATH)
         private String relativePath;
 
@@ -376,6 +383,7 @@ public class FieldProcessorTest {
     }
 
     public static class TestClassH {
+
         @InjectLink(TEMPLATE_B)
         private String link;
 
@@ -394,6 +402,7 @@ public class FieldProcessorTest {
     }
 
     public static class TestClassI {
+
         @InjectLink("widgets/${entity.id}")
         private String link;
 
@@ -412,6 +421,7 @@ public class FieldProcessorTest {
     }
 
     public static class TestClassJ {
+
         @InjectLink("widgets/${entity.id}/widget/{id}")
         private String link;
 
@@ -430,6 +440,7 @@ public class FieldProcessorTest {
     }
 
     public static class DependentInnerBean {
+
         @InjectLink("${entity.id}")
         public String outerUri;
         @InjectLink("${instance.id}")
@@ -441,6 +452,7 @@ public class FieldProcessorTest {
     }
 
     public static class OuterBean {
+
         public DependentInnerBean inner = new DependentInnerBean();
 
         public String getId() {
@@ -459,6 +471,7 @@ public class FieldProcessorTest {
     }
 
     public static class BoundLinkBean {
+
         @InjectLink(value = "{id}", bindings = {@Binding(name = "id", value = "${instance.name}")})
         public String uri;
 
@@ -477,6 +490,7 @@ public class FieldProcessorTest {
     }
 
     public static class BoundLinkOnLinkBean {
+
         @InjectLink(value = "{id}",
                 bindings = {@Binding(name = "id", value = "${instance.name}")},
                 rel = "self")
@@ -497,8 +511,8 @@ public class FieldProcessorTest {
         assertEquals("self", testClass.link.getRel());
     }
 
-
     public static class BoundLinkOnLinksBean {
+
         @InjectLinks({
                 @InjectLink(value = "{id}",
                         bindings = {@Binding(name = "id", value = "${instance.name}")},
@@ -521,7 +535,6 @@ public class FieldProcessorTest {
         })
         public Link[] linksArray;
 
-
         public String getName() {
             return "name";
         }
@@ -543,8 +556,8 @@ public class FieldProcessorTest {
 
     }
 
-
     public static class ConditionalLinkBean {
+
         @InjectLink(value = "{id}", condition = "${entity.uri1Enabled}")
         public String uri1;
 
@@ -576,6 +589,7 @@ public class FieldProcessorTest {
 
     @Path("a")
     public static class SubResource {
+
         @Path("b")
         @GET
         public String getB() {
@@ -584,6 +598,7 @@ public class FieldProcessorTest {
     }
 
     public static class SubResourceBean {
+
         @InjectLink(resource = SubResource.class, method = "getB")
         public String uri;
     }
@@ -599,6 +614,7 @@ public class FieldProcessorTest {
 
     @Path("a")
     public static class QueryResource {
+
         @Path("b")
         @GET
         public String getB(@QueryParam("query") String query, @QueryParam("query2") String query2) {
@@ -625,12 +641,18 @@ public class FieldProcessorTest {
 
         private String queryExample2;
 
-
         @InjectLink(resource = QueryResource.class, method = "getB",
                 bindings = {
                         @Binding(name = "query", value = "${instance.queryParam}"),
                         @Binding(name = "query2", value = "${instance.queryParam2}")
                 })
+        public String uri;
+    }
+
+    public static class QueryResourceBeanNoBindings {
+        //query parameters will be populated from uriInfo
+        //JERSEY-2863
+        @InjectLink(resource = QueryResource.class, method = "getB")
         public String uri;
     }
 
@@ -652,15 +674,32 @@ public class FieldProcessorTest {
         assertEquals("/application/resources/a/b?query=queryExample&query2=queryExample2", testClass.uri);
     }
 
+    @Test
+    public void testQueryResourceWithoutBindings() {
+        LOG.info("QueryResource");
+        FieldProcessor<QueryResourceBeanNoBindings> instance = new FieldProcessor(QueryResourceBeanNoBindings.class);
+        QueryResourceBeanNoBindings testClass = new QueryResourceBeanNoBindings();
+        mockUriInfo.getQueryParameters().putSingle("query", "queryExample");
+        mockUriInfo.getQueryParameters().putSingle("query2", "queryExample2");
+        assertEquals("queryExample", mockUriInfo.getQueryParameters().getFirst("query"));
+        instance.processLinks(testClass, mockUriInfo, mockRmc);
+        assertEquals("/application/resources/a/b?query=queryExample&query2=queryExample2", testClass.uri);
+        //clean mock
+        mockUriInfo.getQueryParameters().clear();
+    }
+
     public static class TestClassK {
+
         public static final ZipEntry zipEntry = new ZipEntry("entry");
     }
 
     public static class TestClassL {
+
         public final ZipEntry zipEntry = new ZipEntry("entry");
     }
 
     private class LoggingFilter implements Filter {
+
         private int count = 0;
 
         @Override
@@ -701,6 +740,7 @@ public class FieldProcessorTest {
     }
 
     public static class TestClassM {
+
         @InjectLink(value = TEMPLATE_B, style = InjectLink.Style.RELATIVE_PATH)
         private String thelink;
 
@@ -736,25 +776,19 @@ public class FieldProcessorTest {
         assertEquals(null, testClass.transientNested.link);
     }
 
-
-
- 
     public static class TestClassN {
-        
         // Simulate object injected by JPA
         // in order to test a fix for JERSEY-2625
-        private transient Iterable res1 = new Iterable()
-        {
+        private transient Iterable res1 = new Iterable() {
             @Override
             public Iterator iterator() {
                 throw new RuntimeException("Declarative linking feature is incorrectly processing a transient iterator");
             }
-            
+
         };
     }
 
-    
-        @Test
+    @Test
     public void testIgnoreTransient() {
         TestClassN testClass = new TestClassN();
         FieldProcessor<TestClassN> instance = new FieldProcessor(TestClassN.class);

@@ -66,9 +66,7 @@ import org.glassfish.jersey.server.ContainerException;
 import org.glassfish.jersey.server.ContainerRequest;
 import org.glassfish.jersey.server.ContainerResponse;
 import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.server.internal.ConfigHelper;
 import org.glassfish.jersey.server.spi.Container;
-import org.glassfish.jersey.server.spi.ContainerLifecycleListener;
 import org.glassfish.jersey.server.spi.ContainerResponseWriter;
 
 import org.glassfish.hk2.api.ServiceLocator;
@@ -86,10 +84,10 @@ import com.sun.net.httpserver.HttpsExchange;
  * @author Marek Potociar (marek.potociar at oracle.com)
  */
 public class JdkHttpHandlerContainer implements HttpHandler, Container {
+
     private static final Logger LOGGER = Logger.getLogger(JdkHttpHandlerContainer.class.getName());
 
     private volatile ApplicationHandler appHandler;
-    private volatile ContainerLifecycleListener containerListener;
 
     /**
      * Create new lightweight Java SE HTTP server container.
@@ -98,7 +96,6 @@ public class JdkHttpHandlerContainer implements HttpHandler, Container {
      */
     JdkHttpHandlerContainer(final Application application) {
         this.appHandler = new ApplicationHandler(application);
-        this.containerListener = ConfigHelper.getContainerLifecycleListener(appHandler);
     }
 
     /**
@@ -109,7 +106,6 @@ public class JdkHttpHandlerContainer implements HttpHandler, Container {
      */
     JdkHttpHandlerContainer(final Application application, final ServiceLocator parentLocator) {
         this.appHandler = new ApplicationHandler(application, null, parentLocator);
-        this.containerListener = ConfigHelper.getContainerLifecycleListener(appHandler);
     }
 
     @Override
@@ -136,8 +132,8 @@ public class JdkHttpHandlerContainer implements HttpHandler, Container {
                  *
                  * TODO support redirection in accordance with resource configuration feature.
                  */
-                exchangeUri = UriBuilder.fromUri(exchangeUri).
-                        path("/").build();
+                exchangeUri = UriBuilder.fromUri(exchangeUri)
+                        .path("/").build();
             }
             decodedBasePath += "/";
         }
@@ -220,11 +216,11 @@ public class JdkHttpHandlerContainer implements HttpHandler, Container {
 
     @Override
     public void reload(final ResourceConfig configuration) {
-        containerListener.onShutdown(this);
+        appHandler.onShutdown(this);
+
         appHandler = new ApplicationHandler(configuration);
-        containerListener = ConfigHelper.getContainerLifecycleListener(appHandler);
-        containerListener.onReload(this);
-        containerListener.onStartup(this);
+        appHandler.onReload(this);
+        appHandler.onStartup(this);
     }
 
     @Override
@@ -238,7 +234,7 @@ public class JdkHttpHandlerContainer implements HttpHandler, Container {
      * This method must be implicitly called after the server containing this container is started.
      */
     void onServerStart() {
-        this.containerListener.onStartup(this);
+        this.appHandler.onStartup(this);
     }
 
     /**
@@ -247,7 +243,7 @@ public class JdkHttpHandlerContainer implements HttpHandler, Container {
      * This method must be implicitly called before the server containing this container is stopped.
      */
     void onServerStop() {
-        this.containerListener.onShutdown(this);
+        this.appHandler.onShutdown(this);
     }
 
     private static final class ResponseWriter implements ContainerResponseWriter {

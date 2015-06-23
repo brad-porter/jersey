@@ -66,7 +66,6 @@ import javax.ws.rs.core.Response;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
-import org.glassfish.jersey.SslConfigurator;
 import org.glassfish.jersey.client.ClientProperties;
 import org.glassfish.jersey.client.ClientRequest;
 import org.glassfish.jersey.client.ClientResponse;
@@ -140,7 +139,6 @@ import jersey.repackaged.com.google.common.util.concurrent.MoreExecutors;
  * <li>{@link ClientProperties#PROXY_PASSWORD}</li>
  * <li>{@link ClientProperties#REQUEST_ENTITY_PROCESSING} - default value is {@link RequestEntityProcessing#CHUNKED}</li>
  * <li>{@link ApacheClientProperties#PREEMPTIVE_BASIC_AUTHENTICATION}</li>
- * <li>{@link ApacheClientProperties#SSL_CONFIG}</li>
  * </ul>
  * <p>
  * This connector uses {@link RequestEntityProcessing#CHUNKED chunked encoding} as a default setting. This can
@@ -235,17 +233,15 @@ class ApacheConnector implements Connector {
             }
         }
 
-        final SSLContext sslContext = getSslContext(client, config);
+        final SSLContext sslContext = client.getSslContext();
         final HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         clientBuilder.setConnectionManager(getConnectionManager(config, sslContext));
+        clientBuilder.setConnectionManagerShared(
+                PropertiesHelper.getValue(config.getProperties(), ApacheClientProperties.CONNECTION_MANAGER_SHARED, false, null));
         clientBuilder.setSslcontext(sslContext);
 
         final RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
-
-        final int connectTimeout = ClientProperties.getValue(config.getProperties(), ClientProperties.CONNECT_TIMEOUT, 0);
-        final int socketTimeout = ClientProperties.getValue(config.getProperties(), ClientProperties.READ_TIMEOUT, 0);
-        final boolean ignoreCookies = PropertiesHelper.isProperty(config.getProperties(), ApacheClientProperties.DISABLE_COOKIES);
 
         final Object credentialsProvider = config.getProperty(ApacheClientProperties.CREDENTIALS_PROVIDER);
         if (credentialsProvider != null && (credentialsProvider instanceof CredentialsProvider)) {
@@ -279,22 +275,15 @@ class ApacheConnector implements Connector {
                 .get(ApacheClientProperties.PREEMPTIVE_BASIC_AUTHENTICATION);
         this.preemptiveBasicAuth = (preemptiveBasicAuthProperty != null) ? preemptiveBasicAuthProperty : false;
 
+        final boolean ignoreCookies = PropertiesHelper.isProperty(config.getProperties(), ApacheClientProperties.DISABLE_COOKIES);
 
         if (reqConfig != null) {
             final RequestConfig.Builder reqConfigBuilder = RequestConfig.copy((RequestConfig) reqConfig);
-            if (connectTimeout > 0) {
-                reqConfigBuilder.setConnectTimeout(connectTimeout);
-            }
-            if (socketTimeout > 0) {
-                reqConfigBuilder.setSocketTimeout(socketTimeout);
-            }
             if (ignoreCookies) {
                 reqConfigBuilder.setCookieSpec(CookieSpecs.IGNORE_COOKIES);
             }
             requestConfig = reqConfigBuilder.build();
         } else {
-            requestConfigBuilder.setConnectTimeout(connectTimeout);
-            requestConfigBuilder.setSocketTimeout(socketTimeout);
             if (ignoreCookies) {
                 requestConfigBuilder.setCookieSpec(CookieSpecs.IGNORE_COOKIES);
             }
@@ -309,15 +298,6 @@ class ApacheConnector implements Connector {
         }
         clientBuilder.setDefaultRequestConfig(requestConfig);
         this.client = clientBuilder.build();
-    }
-
-    private SSLContext getSslContext(final Client client, final Configuration config) {
-        final SslConfigurator sslConfigurator = ApacheClientProperties.getValue(
-                config.getProperties(),
-                ApacheClientProperties.SSL_CONFIG,
-                SslConfigurator.class);
-
-        return sslConfigurator != null ? sslConfigurator.createSSLContext() : client.getSslContext();
     }
 
     private HttpClientConnectionManager getConnectionManager(final Configuration config, final SSLContext sslContext) {
@@ -453,12 +433,11 @@ class ApacheConnector implements Connector {
                 context.setAuthCache(authCache);
             }
             response = client.execute(getHost(request), request, context);
-            HeaderUtils.checkHeaderChanges(clientHeadersSnapshot, clientRequest.getHeaders(),
-                    this.getClass().getName());
+            HeaderUtils.checkHeaderChanges(clientHeadersSnapshot, clientRequest.getHeaders(), this.getClass().getName());
 
-            final Response.StatusType status = response.getStatusLine().getReasonPhrase() == null ?
-                    Statuses.from(response.getStatusLine().getStatusCode()) :
-                    Statuses.from(response.getStatusLine().getStatusCode(), response.getStatusLine().getReasonPhrase());
+            final Response.StatusType status = response.getStatusLine().getReasonPhrase() == null
+                    ? Statuses.from(response.getStatusLine().getStatusCode())
+                    : Statuses.from(response.getStatusLine().getStatusCode(), response.getStatusLine().getReasonPhrase());
 
             final ClientResponse responseContext = new ClientResponse(status, clientRequest);
             final List<URI> redirectLocations = context.getRedirectLocations();
@@ -472,7 +451,7 @@ class ApacheConnector implements Connector {
                 final String headerName = header.getName();
                 List<String> list = headers.get(headerName);
                 if (list == null) {
-                    list = new ArrayList<String>();
+                    list = new ArrayList<>();
                 }
                 list.add(header.getValue());
                 headers.put(headerName, list);
@@ -490,7 +469,6 @@ class ApacheConnector implements Connector {
                     headers.add(HttpHeaders.CONTENT_ENCODING, contentEncoding.getValue());
                 }
             }
-
 
             try {
                 responseContext.setEntityStream(new HttpClientResponseInputStream(getInputStream(response)));
@@ -511,8 +489,6 @@ class ApacheConnector implements Connector {
             public void run() {
                 try {
                     callback.response(apply(request));
-                } catch (final ProcessingException ex) {
-                    callback.failure(ex);
                 } catch (final Throwable t) {
                     callback.failure(t);
                 }
@@ -539,9 +515,21 @@ class ApacheConnector implements Connector {
     }
 
     private HttpUriRequest getUriHttpRequest(final ClientRequest clientRequest) {
+        final RequestConfig.Builder requestConfigBuilder = RequestConfig.copy(requestConfig);
+
+        final int connectTimeout = clientRequest.resolveProperty(ClientProperties.CONNECT_TIMEOUT, -1);
+        final int socketTimeout = clientRequest.resolveProperty(ClientProperties.READ_TIMEOUT, -1);
+
+        if (connectTimeout >= 0) {
+            requestConfigBuilder.setConnectTimeout(connectTimeout);
+        }
+        if (socketTimeout >= 0) {
+            requestConfigBuilder.setSocketTimeout(socketTimeout);
+        }
+
         final Boolean redirectsEnabled =
                 clientRequest.resolveProperty(ClientProperties.FOLLOW_REDIRECTS, requestConfig.isRedirectsEnabled());
-        final RequestConfig config = RequestConfig.copy(requestConfig).setRedirectsEnabled(redirectsEnabled).build();
+        requestConfigBuilder.setRedirectsEnabled(redirectsEnabled);
 
         final Boolean bufferingEnabled = clientRequest.resolveProperty(ClientProperties.REQUEST_ENTITY_PROCESSING,
                 RequestEntityProcessing.class) == RequestEntityProcessing.BUFFERED;
@@ -550,11 +538,10 @@ class ApacheConnector implements Connector {
         return RequestBuilder
                 .create(clientRequest.getMethod())
                 .setUri(clientRequest.getUri())
-                .setConfig(config)
+                .setConfig(requestConfigBuilder.build())
                 .setEntity(entity)
                 .build();
     }
-
 
     private HttpEntity getHttpEntity(final ClientRequest clientRequest, final boolean bufferingEnabled) {
         final Object entity = clientRequest.getEntity();
@@ -613,7 +600,8 @@ class ApacheConnector implements Connector {
         }
     }
 
-    private static Map<String, String> writeOutBoundHeaders(final MultivaluedMap<String, Object> headers, final HttpUriRequest request) {
+    private static Map<String, String> writeOutBoundHeaders(final MultivaluedMap<String, Object> headers,
+                                                            final HttpUriRequest request) {
         final Map<String, String> stringHeaders = HeaderUtils.asStringHeadersSingleValue(headers);
 
         for (final Map.Entry<String, String> e : stringHeaders.entrySet()) {

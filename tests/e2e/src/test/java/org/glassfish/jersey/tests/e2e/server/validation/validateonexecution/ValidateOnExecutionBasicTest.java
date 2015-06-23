@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -59,14 +59,18 @@ import javax.validation.executable.ValidateOnExecution;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.test.TestProperties;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
+import org.glassfish.jersey.test.util.runner.RunSeparately;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
 /**
  * @author Michal Gajdos (michal.gajdos at oracle.com)
  */
+@RunWith(ConcurrentRunner.class)
 public class ValidateOnExecutionBasicTest extends ValidateOnExecutionAbstractTest {
 
     /**
@@ -113,7 +117,7 @@ public class ValidateOnExecutionBasicTest extends ValidateOnExecutionAbstractTes
      * On TYPE.
      */
 
-    public static abstract class ValidateExecutableOnType {
+    public abstract static class ValidateExecutableOnType {
 
         @POST
         @Min(0)
@@ -174,7 +178,7 @@ public class ValidateOnExecutionBasicTest extends ValidateOnExecutionAbstractTes
      * GETTERS.
      */
 
-    public static abstract class ValidateGetterExecutable {
+    public abstract static class ValidateGetterExecutable {
 
         @GET
         @Path("sanity")
@@ -341,6 +345,7 @@ public class ValidateOnExecutionBasicTest extends ValidateOnExecutionAbstractTes
     }
 
     @Test
+    @RunSeparately
     public void testOnTypeValidateResultFailValidateExecutableDefault() throws Exception {
         _testOnType("default", -15, 500);
     }

@@ -558,7 +558,7 @@ Server server = JettyHttpContainerFactory.createServer(baseUri, config);</progra
                 <title>Custom &lit.jaxrs.core.Application; subclass</title>
                 <para>
                     If you extend the &jaxrs.core.Application; class to provide the list of relevant root resource
-                    classes (<literal>getResources()</literal>) and singletons (<literal>getSingletons()</literal>),
+                    classes (<literal>getClasses()</literal>) and singletons (<literal>getSingletons()</literal>),
                     i.e. your JAX-RS application model, you then need to register it in your web application
                     <literal>web.xml</literal> deployment descriptor using a Servlet or Servlet filter initialization
                     parameter with a name of  <literal>javax.ws.rs.Application</literal> [<emphasis>sic</emphasis>] as follows:
@@ -573,7 +573,7 @@ Server server = JettyHttpContainerFactory.createServer(baseUri, config);</progra
 &lt;/init-param&gt;</programlisting>
                     </example>
 
-                    Jersey will consider all the classes returned by <literal>getResources()</literal> and
+                    Jersey will consider all the classes returned by <literal>getClasses()</literal> and
                     <literal>getSingletons()</literal> methods of your &lit.jaxrs.core.Application; implementation.
                 </para>
 
@@ -1090,7 +1090,7 @@ public class StatelessEjbResource implements LocalEjb {
                 <para>
                   Since both CDI and HK2 use the same injection annotation, Jersey could get confused in certain
                   cases, which could lead to nasty runtime issues. The get better control over what Jersey evaluates
-                  as HK2 injection, end-users could take advantage of newly introduced, &jersey.gf.cdi.spi.Hk2CustomBoundTypesProvider;, SPI.
+                  as HK2 injection, end-users could take advantage of newly introduced, &jersey.ext.cdi1x.spi.Hk2CustomBoundTypesProvider;, SPI.
                   Please see the linked javadoc to get detailed information on how to use the SPI in your application.
                 </para>
             </section>

@@ -282,6 +282,14 @@
 </row>
 <row>
 <entry>
+<link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/jersey-media-kryo/dependencies.html">
+    jersey-media-kryo
+</link>
+</entry>
+<entry>Jersey/JAX-RS Message Body Writer and Reader using Kryo serialization framework</entry>
+</row>
+<row>
+<entry>
 <link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/jersey-media-moxy/dependencies.html">
     jersey-media-moxy
 </link>
@@ -341,6 +349,14 @@
 </link>
 </entry>
 <entry>Jersey CDI integration - this module disables custom HK2 bindings</entry>
+</row>
+<row>
+<entry>
+<link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/project/jersey-cdi1x-servlet/dependencies.html">
+    jersey-cdi1x-servlet
+</link>
+</entry>
+<entry>Jersey CDI 1.x Servlet Support</entry>
 </row>
 <row>
 <entry>
@@ -573,6 +589,14 @@
 </link>
 </entry>
 <entry>Jersey Test Framework - Simple HTTP container</entry>
+</row>
+<row>
+<entry>
+<link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/jersey-test-framework-util/dependencies.html">
+    jersey-test-framework-util
+</link>
+</entry>
+<entry>Jersey Test Framework Utils</entry>
 </row>
         </tbody>
     </tgroup>
@@ -912,6 +936,14 @@
 </row>
 <row>
 <entry>
+<link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/helloworld-benchmark/dependencies.html">
+    helloworld-benchmark
+</link>
+</entry>
+<entry>Jersey "Hello World" benchmark example.</entry>
+</row>
+<row>
+<entry>
 <link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/helloworld-programmatic/dependencies.html">
     helloworld-programmatic
 </link>
@@ -991,6 +1023,14 @@
 </link>
 </entry>
 <entry>Jersey HTTPS server on GlassFish example.</entry>
+</row>
+<row>
+<entry>
+<link xlink:href="https://jersey.java.net/project-info/&version;/jersey/project/webapp-example-parent/java8-webapp/dependencies.html">
+    java8-webapp
+</link>
+</entry>
+<entry>Java 8 Types WebApp Example.</entry>
 </row>
 <row>
 <entry>

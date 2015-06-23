@@ -43,9 +43,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.WildcardType;
-import java.lang.reflect.GenericArrayType;
 import java.security.AccessController;
 import java.util.Map;
 import java.util.Set;
@@ -62,7 +59,6 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.PropertyException;
 import javax.xml.bind.Unmarshaller;
-import javax.xml.bind.JAXBElement;
 
 import org.glassfish.jersey.internal.util.ReflectionHelper;
 import org.glassfish.jersey.moxy.json.MoxyJsonConfig;
@@ -83,8 +79,8 @@ import jersey.repackaged.com.google.common.collect.Sets;
 @Singleton
 public class ConfigurableMoxyJsonProvider extends MOXyJsonProvider {
 
-    private final static Set<String> MARSHALLER_PROPERTY_NAMES;
-    private final static Set<String> UNMARSHALLER_PROPERTY_NAMES;
+    private static final Set<String> MARSHALLER_PROPERTY_NAMES;
+    private static final Set<String> UNMARSHALLER_PROPERTY_NAMES;
 
     static {
         MARSHALLER_PROPERTY_NAMES = getPropertyNames(MarshallerProperties.class);
@@ -99,7 +95,7 @@ public class ConfigurableMoxyJsonProvider extends MOXyJsonProvider {
                     && Modifier.isStatic(field.getModifiers())) {
                 try {
                     propertyNames.add((String) field.get(null));
-                } catch (IllegalAccessException e) {
+                } catch (final IllegalAccessException e) {
                     // NOOP.
                 }
             }
@@ -169,8 +165,9 @@ public class ConfigurableMoxyJsonProvider extends MOXyJsonProvider {
     }
 
     private Map<String, Object> getProperties(final boolean forMarshaller) {
-        final Map<String, Object> properties = Maps.newHashMap(
-                forMarshaller ? getGlobalConfig().getMarshallerProperties() : getGlobalConfig().getUnmarshallerProperties());
+        final Map<String, Object> properties = Maps.newHashMap(forMarshaller
+                ? getGlobalConfig().getMarshallerProperties()
+                : getGlobalConfig().getUnmarshallerProperties());
 
         final ContextResolver<MoxyJsonConfig> contextResolver =
                 providers.getContextResolver(MoxyJsonConfig.class, MediaType.APPLICATION_JSON_TYPE);
@@ -178,8 +175,8 @@ public class ConfigurableMoxyJsonProvider extends MOXyJsonProvider {
             final MoxyJsonConfig jsonConfiguration = contextResolver.getContext(MoxyJsonConfig.class);
 
             if (jsonConfiguration != null) {
-                properties.putAll(forMarshaller ?
-                        jsonConfiguration.getMarshallerProperties() : jsonConfiguration.getUnmarshallerProperties());
+                properties.putAll(forMarshaller
+                        ? jsonConfiguration.getMarshallerProperties() : jsonConfiguration.getUnmarshallerProperties());
             }
         }
 
@@ -187,15 +184,21 @@ public class ConfigurableMoxyJsonProvider extends MOXyJsonProvider {
     }
 
     @Override
-    public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
-        return !isPrimitiveType(type) && !Map.class.isAssignableFrom(type) && super.isReadable(type, genericType, annotations,
-                mediaType);
+    public boolean isReadable(final Class<?> type,
+                              final Type genericType,
+                              final Annotation[] annotations,
+                              final MediaType mediaType) {
+        return !isPrimitiveType(type)
+                && super.isReadable(type, genericType, annotations, mediaType);
     }
 
     @Override
-    public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
-        return !isPrimitiveType(type) && !Map.class.isAssignableFrom(type) && super.isWriteable(type, genericType, annotations,
-                mediaType);
+    public boolean isWriteable(final Class<?> type,
+                               final Type genericType,
+                               final Annotation[] annotations,
+                               final MediaType mediaType) {
+        return !isPrimitiveType(type)
+                && super.isWriteable(type, genericType, annotations, mediaType);
     }
 
     private boolean isPrimitiveType(final Class<?> type) {
@@ -209,45 +212,4 @@ public class ConfigurableMoxyJsonProvider extends MOXyJsonProvider {
                 || CoreClassConstants.PBOOLEAN == type || CoreClassConstants.BOOLEAN == type
                 || CoreClassConstants.PBYTE == type || CoreClassConstants.BYTE == type;
     }
-
-    @Override
-    protected Class<?> getDomainClass(Type genericType) {
-        if(null == genericType) {
-            return Object.class;
-        }
-        if(genericType instanceof Class && genericType != JAXBElement.class) {
-            Class<?> clazz = (Class<?>) genericType;
-            if(clazz.isArray()) {
-                return getDomainClass(clazz.getComponentType());
-            }
-            return clazz;
-        } else if(genericType instanceof ParameterizedType) {
-            Type type = ((ParameterizedType) genericType).getActualTypeArguments()[0];
-            if(type instanceof ParameterizedType) {
-                Type rawType = ((ParameterizedType) type).getRawType();
-                if(rawType == JAXBElement.class) {
-                    return getDomainClass(type);
-                } else if (rawType instanceof Class) {
-                    return (Class<?>) rawType;
-                }
-            } else if(type instanceof WildcardType) {
-                Type[] upperTypes = ((WildcardType)type).getUpperBounds();
-                if(upperTypes.length > 0){
-                    Type upperType = upperTypes[0];
-                    if(upperType instanceof Class){
-                        return (Class<?>) upperType;
-                    }
-                }
-            } else if(JAXBElement.class == type) {
-                return Object.class;
-            }
-            return (Class<?>) type;
-        } else if (genericType instanceof GenericArrayType) {
-            GenericArrayType genericArrayType = (GenericArrayType) genericType;
-            return getDomainClass(genericArrayType.getGenericComponentType());
-        } else {
-            return Object.class;
-        }
-    }
-
 }

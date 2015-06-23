@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2013 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -53,7 +53,7 @@ import java.util.Map;
 import org.glassfish.jersey.internal.OsgiRegistry;
 import org.glassfish.jersey.internal.util.ReflectionHelper;
 import org.glassfish.jersey.internal.util.Tokenizer;
-import org.glassfish.jersey.server.ResourceFinder;
+import org.glassfish.jersey.server.internal.AbstractResourceFinderAdapter;
 import org.glassfish.jersey.uri.UriComponent;
 
 /**
@@ -85,7 +85,7 @@ import org.glassfish.jersey.uri.UriComponent;
  * @author Paul Sandoz
  * @author Jakub Podlesak (jakub.podlesak at oracle.com)
  */
-public class PackageNamesScanner implements ResourceFinder {
+public class PackageNamesScanner extends AbstractResourceFinderAdapter {
 
     private final boolean recursive;
     private final String[] packages;
@@ -107,7 +107,8 @@ public class PackageNamesScanner implements ResourceFinder {
      *                  will be scanned.
      */
     public PackageNamesScanner(final String[] packages, final boolean recursive) {
-        this(AccessController.doPrivileged(ReflectionHelper.getContextClassLoaderPA()), Tokenizer.tokenize(packages, Tokenizer.COMMON_DELIMITERS), recursive);
+        this(AccessController.doPrivileged(ReflectionHelper.getContextClassLoaderPA()),
+                Tokenizer.tokenize(packages, Tokenizer.COMMON_DELIMITERS), recursive);
     }
 
     /**
@@ -128,16 +129,16 @@ public class PackageNamesScanner implements ResourceFinder {
         this.packages = packages.clone();
         this.classloader = classLoader;
 
-        this.finderFactories = new HashMap<String, UriSchemeResourceFinderFactory>();
+        this.finderFactories = new HashMap<>();
         add(new JarZipSchemeResourceFinderFactory());
         add(new FileSchemeResourceFinderFactory());
         add(new VfsSchemeResourceFinderFactory());
         add(new BundleSchemeResourceFinderFactory());
 
-//        TODO - Services?
-//        for (UriSchemeResourceFinderFactory s : ServiceFinder.find(UriSchemeResourceFinderFactory.class)) {
-//            add(s);
-//        }
+        // TODO - Services?
+        // for (UriSchemeResourceFinderFactory s : ServiceFinder.find(UriSchemeResourceFinderFactory.class)) {
+        //     add(s);
+        // }
 
         final OsgiRegistry osgiRegistry = ReflectionHelper.getOsgiRegistryInstance();
         if (osgiRegistry != null) {
@@ -145,7 +146,7 @@ public class PackageNamesScanner implements ResourceFinder {
 
                 @Override
                 public Enumeration<URL> getResources(String packagePath, ClassLoader classLoader) throws IOException {
-                    return osgiRegistry.getPackageResources(packagePath, classLoader);
+                    return osgiRegistry.getPackageResources(packagePath, classLoader, recursive);
                 }
             });
         }
@@ -167,11 +168,6 @@ public class PackageNamesScanner implements ResourceFinder {
     @Override
     public String next() {
         return resourceFinderStack.next();
-    }
-
-    @Override
-    public void remove() {
-        resourceFinderStack.remove();
     }
 
     @Override
@@ -208,7 +204,7 @@ public class PackageNamesScanner implements ResourceFinder {
     /**
      * Find resources with a given name and class loader.
      */
-    public static abstract class ResourcesProvider {
+    public abstract static class ResourcesProvider {
 
         private static volatile ResourcesProvider provider;
 

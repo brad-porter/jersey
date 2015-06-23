@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2013 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -94,6 +94,7 @@ import org.osgi.framework.SynchronousBundleListener;
  */
 public final class OsgiRegistry implements SynchronousBundleListener {
 
+    private static final String WEB_INF_CLASSES = "WEB-INF/classes/";
     private static final String CoreBundleSymbolicNAME = "org.glassfish.jersey.core.jersey-common";
     private static final Logger LOGGER = Logger.getLogger(OsgiRegistry.class.getName());
 
@@ -104,7 +105,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
 
     private static OsgiRegistry instance;
 
-    private Map<String, Bundle> classToBundleMapping = new HashMap<String, Bundle>();
+    private final Map<String, Bundle> classToBundleMapping = new HashMap<String, Bundle>();
 
     /**
      * Returns an {@code OsgiRegistry} instance. Call this method only if sure that the application is running in OSGi
@@ -114,10 +115,10 @@ public final class OsgiRegistry implements SynchronousBundleListener {
      */
     public static synchronized OsgiRegistry getInstance() {
         if (instance == null) {
-
-            final ClassLoader classLoader = AccessController.doPrivileged(ReflectionHelper.getClassLoaderPA(ReflectionHelper.class));
+            final ClassLoader classLoader = AccessController
+                    .doPrivileged(ReflectionHelper.getClassLoaderPA(ReflectionHelper.class));
             if (classLoader instanceof BundleReference) {
-                BundleContext context = FrameworkUtil.getBundle(OsgiRegistry.class).getBundleContext();
+                final BundleContext context = FrameworkUtil.getBundle(OsgiRegistry.class).getBundleContext();
                 if (context != null) { // context could be still null if the current bundle has not been started
                     instance = new OsgiRegistry(context);
                 }
@@ -132,7 +133,10 @@ public final class OsgiRegistry implements SynchronousBundleListener {
 
         @Override
         public <T> Iterator<T> createIterator(
-                final Class<T> serviceClass, final String serviceName, ClassLoader loader, boolean ignoreOnClassNotFound) {
+                final Class<T> serviceClass,
+                final String serviceName,
+                final ClassLoader loader,
+                final boolean ignoreOnClassNotFound) {
 
             final List<Class<?>> providerClasses = locateAllProviders(serviceName);
             if (!providerClasses.isEmpty()) {
@@ -148,11 +152,11 @@ public final class OsgiRegistry implements SynchronousBundleListener {
                     @SuppressWarnings("unchecked")
                     @Override
                     public T next() {
-                        Class<T> nextClass = (Class<T>) it.next();
+                        final Class<T> nextClass = (Class<T>) it.next();
                         try {
                             return nextClass.newInstance();
-                        } catch (Exception ex) {
-                            ServiceConfigurationError sce = new ServiceConfigurationError(serviceName + ": "
+                        } catch (final Exception ex) {
+                            final ServiceConfigurationError sce = new ServiceConfigurationError(serviceName + ": "
                                     + LocalizationMessages.PROVIDER_COULD_NOT_BE_CREATED(
                                     nextClass.getName(), serviceClass, ex.getLocalizedMessage()));
                             sce.initCause(ex);
@@ -171,7 +175,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
 
         @Override
         public <T> Iterator<Class<T>> createClassIterator(
-                Class<T> service, String serviceName, ClassLoader loader, boolean ignoreOnClassNotFound) {
+                final Class<T> service, final String serviceName, final ClassLoader loader, final boolean ignoreOnClassNotFound) {
             final List<Class<?>> providerClasses = locateAllProviders(serviceName);
             if (!providerClasses.isEmpty()) {
                 return new Iterator<Class<T>>() {
@@ -236,17 +240,17 @@ public final class OsgiRegistry implements SynchronousBundleListener {
                 }
 
                 return providerClasses;
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 LOGGER.log(Level.WARNING, LocalizationMessages.EXCEPTION_CAUGHT_WHILE_LOADING_SPI_PROVIDERS(), e);
                 throw e;
-            } catch (Error e) {
+            } catch (final Error e) {
                 LOGGER.log(Level.WARNING, LocalizationMessages.ERROR_CAUGHT_WHILE_LOADING_SPI_PROVIDERS(), e);
                 throw e;
             } finally {
                 if (reader != null) {
                     try {
                         reader.close();
-                    } catch (IOException ioe) {
+                    } catch (final IOException ioe) {
                         LOGGER.log(Level.FINE, "Error closing SPI registry stream:" + spiRegistryUrl, ioe);
                     }
                 }
@@ -264,7 +268,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
         }
 
         @Override
-        public boolean equals(Object obj) {
+        public boolean equals(final Object obj) {
             if (obj instanceof BundleSpiProvidersLoader) {
                 return spiRegistryUrlString.equals(((BundleSpiProvidersLoader) obj).spiRegistryUrlString);
             } else {
@@ -274,7 +278,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
     }
 
     @Override
-    public void bundleChanged(BundleEvent event) {
+    public void bundleChanged(final BundleEvent event) {
 
         if (event.getType() == BundleEvent.RESOLVED) {
             register(event.getBundle());
@@ -297,30 +301,96 @@ public final class OsgiRegistry implements SynchronousBundleListener {
     }
 
     /**
+     * Translates bundle entry path as returned from {@link org.osgi.framework.Bundle#findEntries(String, String, boolean)} to
+     * fully qualified class name that resides in given package path (directly or indirectly in its subpackages).
+     *
+     * @param packagePath     The package path where the class is located (even recursively)
+     * @param bundleEntryPath The bundle path to translate.
+     * @return Fully qualified class name.
+     */
+    public static String bundleEntryPathToClassName(String packagePath, String bundleEntryPath) {
+        // normalize packagePath
+        packagePath = normalizedPackagePath(packagePath);
+
+        // remove WEB-INF/classes from bundle entry path
+        if (bundleEntryPath.contains(WEB_INF_CLASSES)) {
+            bundleEntryPath = bundleEntryPath.substring(bundleEntryPath.indexOf(WEB_INF_CLASSES) + WEB_INF_CLASSES.length());
+        }
+
+        final int packageIndex = bundleEntryPath.indexOf(packagePath);
+
+        String normalizedClassNamePath = packageIndex > -1
+                // the package path was found in the bundle path
+                ? bundleEntryPath.substring(packageIndex)
+                // the package path is not included in the bundle entry path
+                // fall back to the original implementation of the translation which does not consider recursion
+                : packagePath + bundleEntryPath.substring(bundleEntryPath.lastIndexOf('/') + 1);
+
+        return (normalizedClassNamePath.startsWith("/") ? normalizedClassNamePath.substring(1) : normalizedClassNamePath)
+                .replace('/', '.').replace(".class", "");
+    }
+
+    /**
+     * Returns whether the given entry path is located directly in the provided package path. That is,
+     * if the entry is located in a sub-package, then {@code false} is returned.
+     *
+     * @param packagePath Package path which the entry is compared to
+     * @param entryPath Entry path
+     * @return Whether the given entry path is located directly in the provided package path.
+     */
+    public static boolean isPackageLevelEntry(String packagePath, final String entryPath) {
+        // normalize packagePath
+        packagePath = normalizedPackagePath(packagePath);
+
+        // if the package path is contained in the jar entry name, subtract it
+        String entryWithoutPackagePath = entryPath.contains(packagePath)
+                ? entryPath.substring(entryPath.indexOf(packagePath) + packagePath.length())
+                : entryPath;
+
+        return !(entryWithoutPackagePath.startsWith("/") ? entryWithoutPackagePath.substring(1)
+                         : entryWithoutPackagePath)
+                .contains("/");
+    }
+
+    /**
+     * Normalized package returns path that does not start with '/' character and ends with '/' character.
+     * If the argument is '/' then returned value is empty string "".
+     *
+     * @param packagePath package path to normalize.
+     * @return Normalized package path.
+     */
+    public static String normalizedPackagePath(String packagePath) {
+        packagePath = packagePath.startsWith("/") ? packagePath.substring(1) : packagePath;
+        packagePath = packagePath.endsWith("/") ? packagePath : packagePath + "/";
+        packagePath = "/".equals(packagePath) ? "" : packagePath;
+        return packagePath;
+    }
+
+    /**
      * Get URLs of resources from a given package.
      *
      * @param packagePath package.
      * @param classLoader resource class loader.
+     * @param recursive   whether the given package path should be scanned recursively by OSGi
      * @return URLs of the located resources.
      */
     @SuppressWarnings("unchecked")
-    public Enumeration<URL> getPackageResources(final String packagePath, final ClassLoader classLoader) {
-        List<URL> result = new LinkedList<URL>();
+    public Enumeration<URL> getPackageResources(final String packagePath,
+                                                final ClassLoader classLoader,
+                                                final boolean recursive) {
+        final List<URL> result = new LinkedList<URL>();
 
-        for (Bundle bundle : bundleContext.getBundles()) {
+        for (final Bundle bundle : bundleContext.getBundles()) {
             // Look for resources at the given <packagePath> and at WEB-INF/classes/<packagePath> in case a WAR is being examined.
-            for (String bundlePackagePath : new String[]{packagePath, "WEB-INF/classes/" + packagePath}) {
-                final Enumeration<URL> enumeration = findEntries(bundle, bundlePackagePath, "*", false);
+            for (final String bundlePackagePath : new String[] {packagePath, WEB_INF_CLASSES + packagePath}) {
+                final Enumeration<URL> enumeration = findEntries(bundle, bundlePackagePath, "*.class", recursive);
 
                 if (enumeration != null) {
                     while (enumeration.hasMoreElements()) {
                         final URL url = enumeration.nextElement();
                         final String path = url.getPath();
 
-                        final String className = (packagePath + path.substring(path.lastIndexOf('/'))).
-                                replace('/', '.').replace(".class", "");
-
-                        classToBundleMapping.put(className, bundle);
+                        classToBundleMapping.put(bundleEntryPathToClassName(packagePath, path), bundle);
                         result.add(url);
                     }
                 }
@@ -339,11 +409,11 @@ public final class OsgiRegistry implements SynchronousBundleListener {
                     final JarInputStream jarInputStream;
                     try {
                         jarInputStream = new JarInputStream(inputStream);
-                    } catch (IOException ex) {
+                    } catch (final IOException ex) {
                         LOGGER.log(Level.CONFIG, LocalizationMessages.OSGI_REGISTRY_ERROR_PROCESSING_RESOURCE_STREAM(jar), ex);
                         try {
                             inputStream.close();
-                        } catch (IOException e) {
+                        } catch (final IOException e) {
                             // ignored
                         }
                         continue;
@@ -353,18 +423,31 @@ public final class OsgiRegistry implements SynchronousBundleListener {
                         JarEntry jarEntry;
                         while ((jarEntry = jarInputStream.getNextJarEntry()) != null) {
                             final String jarEntryName = jarEntry.getName();
+                            final String jarEntryNameLeadingSlash = jarEntryName.startsWith("/")
+                                    ? jarEntryName : "/" + jarEntryName;
 
-                            if (jarEntryName.endsWith(".class") && jarEntryName.contains(packagePath)) {
+                            if (jarEntryName.endsWith(".class")
+                                    // Added leading and trailing slashes '/' to package path (e.g. '/com/') helps us to not
+                                    // accidentally match sub-strings of the package path (e.g., if package path 'com' was used
+                                    // for scanning, package 'whatever.foo.telecom' would be matched because of word 'tele[com]').
+                                    // Note that we cannot avoid all corner cases with accidental matches since jar
+                                    // entry name might be almost anything (e.g., if package path 'telecom' was used, package
+                                    // 'whatever.foo.telecom' will be matched and there is no way to avoid it unless user
+                                    // explicitly instructs us to do so somehow (not implemented)
+                                    && jarEntryNameLeadingSlash.contains("/" + normalizedPackagePath(packagePath))) {
+                                if (!recursive && !isPackageLevelEntry(packagePath, jarEntryName)) {
+                                    continue;
+                                }
                                 classToBundleMapping.put(jarEntryName.replace(".class", "").replace('/', '.'), bundle);
                                 result.add(bundle.getResource(jarEntryName));
                             }
                         }
-                    } catch (Exception ex) {
+                    } catch (final Exception ex) {
                         LOGGER.log(Level.CONFIG, LocalizationMessages.OSGI_REGISTRY_ERROR_PROCESSING_RESOURCE_STREAM(jar), ex);
                     } finally {
                         try {
                             jarInputStream.close();
-                        } catch (IOException e) {
+                        } catch (final IOException e) {
                             // ignored
                         }
                     }
@@ -406,13 +489,13 @@ public final class OsgiRegistry implements SynchronousBundleListener {
         final int lastDotIndex = bundleName.lastIndexOf('.');
         final String path = bundleName.substring(0, lastDotIndex).replace('.', '/');
         final String propertiesName = bundleName.substring(lastDotIndex + 1, bundleName.length()) + ".properties";
-        for (Bundle bundle : bundleContext.getBundles()) {
+        for (final Bundle bundle : bundleContext.getBundles()) {
             final Enumeration<URL> entries = findEntries(bundle, path, propertiesName, false);
             if (entries != null && entries.hasMoreElements()) {
                 final URL entryUrl = entries.nextElement();
                 try {
                     return new PropertyResourceBundle(entryUrl.openStream());
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     if (LOGGER.isLoggable(Level.FINE)) {
                         // does not make sense to localize this
                         LOGGER.fine("Exception caught when tried to load resource bundle in OSGi");
@@ -430,7 +513,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
      *
      * @param bundleContext must be a non-null instance of a BundleContext
      */
-    private OsgiRegistry(BundleContext bundleContext) {
+    private OsgiRegistry(final BundleContext bundleContext) {
         this.bundleContext = bundleContext;
     }
 
@@ -446,7 +529,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
     }
 
     private void registerExistingBundles() {
-        for (Bundle bundle : bundleContext.getBundles()) {
+        for (final Bundle bundle : bundleContext.getBundles()) {
             if (bundle.getState() == Bundle.RESOLVED || bundle.getState() == Bundle.STARTING
                     || bundle.getState() == Bundle.ACTIVE || bundle.getState() == Bundle.STOPPING) {
                 register(bundle);
@@ -475,7 +558,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
             lock.writeLock().unlock();
         }
 
-        Enumeration<URL> e = findEntries(bundle, "META-INF/services/", "*", false);
+        final Enumeration<URL> e = findEntries(bundle, "META-INF/services/", "*", false);
         if (e != null) {
             while (e.hasMoreElements()) {
                 final URL u = e.nextElement();
@@ -489,15 +572,15 @@ public final class OsgiRegistry implements SynchronousBundleListener {
         }
     }
 
-    private List<Class<?>> locateAllProviders(String serviceName) {
+    private List<Class<?>> locateAllProviders(final String serviceName) {
         lock.readLock().lock();
         try {
             final List<Class<?>> result = new LinkedList<Class<?>>();
-            for (Map<String, Callable<List<Class<?>>>> value : factories.values()) {
+            for (final Map<String, Callable<List<Class<?>>>> value : factories.values()) {
                 if (value.containsKey(serviceName)) {
                     try {
                         result.addAll(value.get(serviceName).call());
-                    } catch (Exception ex) {
+                    } catch (final Exception ex) {
                         // ignore
                     }
                 }
@@ -516,7 +599,7 @@ public final class OsgiRegistry implements SynchronousBundleListener {
                     return bundle.loadClass(className);
                 }
             });
-        } catch (PrivilegedActionException ex) {
+        } catch (final PrivilegedActionException ex) {
             final Exception originalException = ex.getException();
             if (originalException instanceof ClassNotFoundException) {
                 throw (ClassNotFoundException) originalException;
@@ -528,7 +611,10 @@ public final class OsgiRegistry implements SynchronousBundleListener {
         }
     }
 
-    private static Enumeration<URL> findEntries(final Bundle bundle, final String path, final String fileNamePattern, final boolean recursive) {
+    private static Enumeration<URL> findEntries(final Bundle bundle,
+                                                final String path,
+                                                final String fileNamePattern,
+                                                final boolean recursive) {
         return AccessController.doPrivileged(new PrivilegedAction<Enumeration<URL>>() {
             @SuppressWarnings("unchecked")
             @Override

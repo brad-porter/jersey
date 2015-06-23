@@ -48,6 +48,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -75,13 +76,13 @@ import javax.ws.rs.core.GenericType;
 import org.glassfish.jersey.internal.LocalizationMessages;
 import org.glassfish.jersey.internal.OsgiRegistry;
 import org.glassfish.jersey.internal.util.collection.ClassTypePair;
-import org.osgi.framework.Bundle;
-import org.osgi.framework.FrameworkUtil;
 
 import jersey.repackaged.com.google.common.base.Function;
 import jersey.repackaged.com.google.common.collect.Collections2;
 import jersey.repackaged.com.google.common.collect.Lists;
 import jersey.repackaged.com.google.common.collect.Sets;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.FrameworkUtil;
 
 /**
  * Utility methods for Java reflection.
@@ -89,10 +90,10 @@ import jersey.repackaged.com.google.common.collect.Sets;
  * @author Paul Sandoz
  * @author Jakub Podlesak (jakub.podlesak at oracle.com)
  */
-public class ReflectionHelper {
+public final class ReflectionHelper {
 
     private static final Logger LOGGER = Logger.getLogger(ReflectionHelper.class.getName());
-    private static final PrivilegedAction NoOpPrivilegedACTION = new PrivilegedAction() {
+    private static final PrivilegedAction<?> NoOpPrivilegedACTION = new PrivilegedAction<Object>() {
         @Override
         public Object run() {
             return null;
@@ -100,8 +101,17 @@ public class ReflectionHelper {
     };
 
     /**
-     * Get the declaring class of an accessible object. Supported are {@link Method},
-     * {@link Field} and {@link Constructor} accessible object types.
+     * Prevents instantiation.
+     */
+    private ReflectionHelper() {
+        throw new AssertionError("No instances allowed.");
+    }
+
+    /**
+     * Get the declaring class of an accessible object.
+     * <p>
+     * Supported are {@link Method}, {@link Field} and {@link Constructor} accessible object types.
+     * </p>
      *
      * @param ao an accessible object.
      * @return the declaring class of an accessible object.
@@ -109,12 +119,8 @@ public class ReflectionHelper {
      *                                  is not supported.
      */
     public static Class<?> getDeclaringClass(final AccessibleObject ao) {
-        if (ao instanceof Method) {
-            return ((Method) ao).getDeclaringClass();
-        } else if (ao instanceof Field) {
-            return ((Field) ao).getDeclaringClass();
-        } else if (ao instanceof Constructor) {
-            return ((Constructor) ao).getDeclaringClass();
+        if (ao instanceof Member && (ao instanceof Field || ao instanceof Method || ao instanceof Constructor)) {
+            return ((Member) ao).getDeclaringClass();
         } else {
             throw new IllegalArgumentException("Unsupported accessible object type: " + ao.getClass().getName());
         }
@@ -122,12 +128,13 @@ public class ReflectionHelper {
 
     /**
      * Create a string representation of an object.
-     * <p/>
+     * <p>
      * Returns a string consisting of the name of the class of which the
      * object is an instance, the at-sign character {@code '&#64;'}, and
      * the unsigned hexadecimal representation of the hash code of the
      * object. In other words, this method returns a string equal to the
      * value of:
+     * </p>
      * <pre>
      * o.getClass().getName() + '@' + Integer.toHexString(o.hashCode())
      * </pre>
@@ -145,7 +152,7 @@ public class ReflectionHelper {
     /**
      * Create a string representation of a method and an instance whose
      * class implements the method.
-     * <p/>
+     * <p>
      * Returns a string consisting of the name of the class of which the object
      * is an instance, the at-sign character {@code '&#64;'},
      * the unsigned hexadecimal representation of the hash code of the
@@ -153,6 +160,7 @@ public class ReflectionHelper {
      * the character {@code '('}, the list of method parameters, and
      * the character {@code ')'}. In other words, those method returns a
      * string equal to the value of:
+     * </p>
      * <pre>
      * o.getClass().getName() + '@' + Integer.toHexString(o.hashCode()) +
      *         '.' + m.getName() + '(' + &lt;parameters&gt; + ')'.</pre>
@@ -163,9 +171,9 @@ public class ReflectionHelper {
      */
     public static String methodInstanceToString(final Object o, final Method m) {
         final StringBuilder sb = new StringBuilder();
-        sb.append(o.getClass().getName()).
-                append('@').append(Integer.toHexString(o.hashCode())).
-                append('.').append(m.getName()).append('(');
+        sb.append(o.getClass().getName())
+                .append('@').append(Integer.toHexString(o.hashCode()))
+                .append('.').append(m.getName()).append('(');
 
         final Class[] params = m.getParameterTypes();
         for (int i = 0; i < params.length; i++) {
@@ -182,9 +190,10 @@ public class ReflectionHelper {
 
     /**
      * Get the Java type or array name.
-     *
+     * <p>
      * If the class is representing an array, the {@code "[]"} suffix will be added
      * to the name of the type for each dimension of an array.
+     * </p>
      *
      * @param type Java type (can represent an array).
      * @return Java type or array name.
@@ -209,18 +218,18 @@ public class ReflectionHelper {
 
     /**
      * Get privileged action to obtain Class from given class name.
+     * <p>
      * If run using security manager, the returned privileged action
      * must be invoked within a doPrivileged block.
-     * <p/>
      * The context class loader will be utilized if accessible and non-null.
      * Otherwise the defining class loader of this class will
      * be utilized.
+     * </p>
      *
      * @param <T>  class type.
      * @param name class name.
      * @return privileged action to obtain desired Class.
-     *         The action could return {@code null} if the class cannot be found.
-     *
+     * The action could return {@code null} if the class cannot be found.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static <T> PrivilegedAction<Class<T>> classForNamePA(final String name) {
@@ -231,14 +240,12 @@ public class ReflectionHelper {
      * Get privileged action to obtain Class from given class name.
      * If run using security manager, the returned privileged action
      * must be invoked within a doPrivileged block.
-     * <p/>
+     *
      * @param <T>  class type.
      * @param name class name.
      * @param cl   class loader to use, if {@code null} then the defining class loader
      *             of this class will be utilized.
-     * @return privileged action to obtain desired Class.
-     *             The action could return {@code null} if the class cannot be found.
-     *
+     * @return privileged action to obtain desired Class. The action could return {@code null} if the class cannot be found.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     @SuppressWarnings("unchecked")
@@ -277,7 +284,6 @@ public class ReflectionHelper {
      *
      * @param clazz class for which to get class loader.
      * @return privileged action to obtain class loader for the {@code clazz} class.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<ClassLoader> getClassLoaderPA(final Class<?> clazz) {
@@ -296,7 +302,6 @@ public class ReflectionHelper {
      *
      * @param clazz class for which to get the declared fields.
      * @return privileged action to obtain fields declared on the {@code clazz} class.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<Field[]> getDeclaredFieldsPA(final Class<?> clazz) {
@@ -315,24 +320,23 @@ public class ReflectionHelper {
      *
      * @param clazz class for which to get fields.
      * @return privileged action to obtain fields declared on the {@code clazz} class.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<Field[]> getAllFieldsPA(final Class<?> clazz) {
         return new PrivilegedAction<Field[]>() {
             @Override
             public Field[] run() {
-            	final List<Field> fields = new ArrayList<Field>();
-            	recurse(clazz, fields);
+                final List<Field> fields = new ArrayList<Field>();
+                recurse(clazz, fields);
                 return fields.toArray(new Field[fields.size()]);
             }
 
-           private void recurse(final Class<?> clazz, final List<Field> fields) {
-        	   fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
-        	   if(clazz.getSuperclass() != null) {
-        		   recurse(clazz.getSuperclass(), fields);
-        	   }
-           }
+            private void recurse(final Class<?> clazz, final List<Field> fields) {
+                fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
+                if (clazz.getSuperclass() != null) {
+                    recurse(clazz.getSuperclass(), fields);
+                }
+            }
         };
     }
 
@@ -343,14 +347,13 @@ public class ReflectionHelper {
      *
      * @param clazz class for which to get the declared methods.
      * @return privileged action to obtain methods declared on the {@code clazz} class.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
-    public static PrivilegedAction<Method[]> getDeclaredMethodsPA(final Class<?> clazz) {
-        return new PrivilegedAction<Method[]>() {
+    public static PrivilegedAction<Collection<? extends Method>> getDeclaredMethodsPA(final Class<?> clazz) {
+        return new PrivilegedAction<Collection<? extends Method>>() {
             @Override
-            public Method[] run() {
-                return clazz.getDeclaredMethods();
+            public Collection<? extends Method> run() {
+                return Arrays.asList(clazz.getDeclaredMethods());
             }
         };
     }
@@ -366,11 +369,12 @@ public class ReflectionHelper {
      * @param <T>  class type.
      * @param name class name.
      * @return privileged exception action to obtain the Class.
-     *         The action could throw {@link ClassNotFoundException} or return {@code null} if the class cannot be found.
-     *
+     * The action could throw {@link ClassNotFoundException} or return {@code null} if the class cannot be found.
+     * @throws ClassNotFoundException in case the class cannot be loaded with the context class loader.
      * @see AccessController#doPrivileged(java.security.PrivilegedExceptionAction)
      */
-    public static <T> PrivilegedExceptionAction<Class<T>> classForNameWithExceptionPEA(final String name) throws ClassNotFoundException {
+    public static <T> PrivilegedExceptionAction<Class<T>> classForNameWithExceptionPEA(final String name)
+            throws ClassNotFoundException {
         return classForNameWithExceptionPEA(name, getContextClassLoader());
     }
 
@@ -383,27 +387,27 @@ public class ReflectionHelper {
      * @param name class name.
      * @param cl   class loader to use, if {@code null} then the defining class loader
      *             of the calling class will be utilized.
-     * @return privileged exception action to obtain the Class.
-     *         The action throws {@link ClassNotFoundException}
-     *         or returns {@code null} if the class cannot be found.
-     *
+     * @return privileged exception action to obtain the Class. If the class cannot be found, the action returns {@code null},
+     * or throws {@link ClassNotFoundException} in case the class loader has been specified.
+     * @throws ClassNotFoundException in case the class cannot be loaded with the specified class loader.
      * @see AccessController#doPrivileged(java.security.PrivilegedExceptionAction)
      */
     @SuppressWarnings("unchecked")
-    public static <T> PrivilegedExceptionAction<Class<T>> classForNameWithExceptionPEA(final String name, final ClassLoader cl) throws ClassNotFoundException {
-            return new PrivilegedExceptionAction<Class<T>>() {
-                @Override
-                public Class<T> run() throws ClassNotFoundException {
-                    if (cl != null) {
-                        try {
-                            return (Class<T>) Class.forName(name, false, cl);
-                        } catch (final ClassNotFoundException ex) {
-                            // ignored on purpose
-                        }
+    public static <T> PrivilegedExceptionAction<Class<T>> classForNameWithExceptionPEA(final String name, final ClassLoader cl)
+            throws ClassNotFoundException {
+        return new PrivilegedExceptionAction<Class<T>>() {
+            @Override
+            public Class<T> run() throws ClassNotFoundException {
+                if (cl != null) {
+                    try {
+                        return (Class<T>) Class.forName(name, false, cl);
+                    } catch (final ClassNotFoundException ex) {
+                        // ignored on purpose
                     }
-                    return (Class<T>) Class.forName(name);
                 }
-            };
+                return (Class<T>) Class.forName(name);
+            }
+        };
     }
 
     /**
@@ -411,9 +415,8 @@ public class ReflectionHelper {
      * If run using security manager, the returned privileged action
      * must be invoked within a doPrivileged block.
      *
-     * @return privileged action to obtain the actual context class loader.
-     *         The action could return {@code null} if context class loader has not been set.
-     *
+     * @return privileged action to obtain the actual context class loader. The action could return {@code null}
+     * if the context class loader has not been set.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<ClassLoader> getContextClassLoaderPA() {
@@ -441,7 +444,6 @@ public class ReflectionHelper {
      *
      * @param classLoader context class loader to be set.
      * @return privileged action to set context class loader.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction setContextClassLoaderPA(final ClassLoader classLoader) {
@@ -461,7 +463,6 @@ public class ReflectionHelper {
      *
      * @param m method to be set as accessible.
      * @return privileged action to set the method to be accessible.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction setAccessibleMethodPA(final Method m) {
@@ -498,7 +499,7 @@ public class ReflectionHelper {
      *
      * @param type parameterized type.
      * @return the list of classed representing the actual type arguments. May be empty,
-     *         but may never be {@code null}.
+     * but may never be {@code null}.
      * @throws IllegalArgumentException if any of the generic type arguments is
      *                                  not a class, or a generic array type, or the generic component type
      *                                  of the generic array type is not class, or not a parameterized type
@@ -536,8 +537,7 @@ public class ReflectionHelper {
      * list is returned.
      *
      * @param type parameterized type.
-     * @return the list of class-type pairs representing the actual type arguments.
-     *         May be empty, but may never be {@code null}.
+     * @return the list of class-type pairs representing the actual type arguments. May be empty, but may never be {@code null}.
      * @throws IllegalArgumentException if any of the generic type arguments is
      *                                  not a class, or a generic array type, or the generic component type
      *                                  of the generic array type is not class, or not a parameterized type
@@ -562,6 +562,7 @@ public class ReflectionHelper {
      * Check if the given type is a primitive type.
      *
      * @param type type to be checked.
+     * @return {@code true} in case the type represents a primitive type, otherwise returns {@code false}.
      */
     public static boolean isPrimitive(final Type type) {
         if (type instanceof Class) {
@@ -578,8 +579,7 @@ public class ReflectionHelper {
      * the method returns {@code null}.
      *
      * @param type parameterized type.
-     * @return type arguments for a parameterized type, or {@code null} in case the input type is
-     *         not a parameterized type.
+     * @return type arguments for a parameterized type, or {@code null} in case the input type is not a parameterized type.
      */
     public static Type[] getTypeArguments(final Type type) {
         if (!(type instanceof ParameterizedType)) {
@@ -597,8 +597,8 @@ public class ReflectionHelper {
      *
      * @param type  parameterized type.
      * @param index type parameter index.
-     * @return type argument for a parameterized type at a given index, or {@code null}
-     *         in case the input type is not a parameterized type.
+     * @return type argument for a parameterized type at a given index, or {@code null} in case the input type is not
+     * a parameterized type.
      */
     public static Type getTypeArgument(final Type type, final int index) {
         if (type instanceof ParameterizedType) {
@@ -616,8 +616,9 @@ public class ReflectionHelper {
      * See bug 6202725.
      */
     private static Type fix(final Type t) {
-        if (!(t instanceof GenericArrayType))
+        if (!(t instanceof GenericArrayType)) {
             return t;
+        }
 
         final GenericArrayType gat = (GenericArrayType) t;
         if (gat.getGenericComponentType() instanceof Class) {
@@ -639,7 +640,6 @@ public class ReflectionHelper {
 
         @Override
         protected Class onParameterizedType(final ParameterizedType type) {
-            // TODO: why getRawType returns Type? not Class?
             return visit(type.getRawType());
         }
 
@@ -683,7 +683,7 @@ public class ReflectionHelper {
      * @param subType   sub-type type.
      * @param superType super-type type.
      * @return {@code true} in case the {@code subType} is a sub-type of {@code superType},
-     *         {@code false} otherwise.
+     * {@code false} otherwise.
      */
     public static boolean isSubClassOf(final Type subType, final Type superType) {
         return erasure(superType).isAssignableFrom(erasure(subType));
@@ -709,7 +709,7 @@ public class ReflectionHelper {
      * @param type          type to check.
      * @param componentType array component type.
      * @return {@code true} in case the type is an array type of a given component type,
-     *         {@code false} otherwise.
+     * {@code false} otherwise.
      */
     public static boolean isArrayOfType(final Type type, final Class<?> componentType) {
         if (type instanceof Class) {
@@ -735,8 +735,9 @@ public class ReflectionHelper {
             final Class c = (Class) type;
             return c.getComponentType();
         }
-        if (type instanceof GenericArrayType)
+        if (type instanceof GenericArrayType) {
             return ((GenericArrayType) type).getGenericComponentType();
+        }
 
         throw new IllegalArgumentException();
     }
@@ -763,8 +764,7 @@ public class ReflectionHelper {
      *
      * @param clazz class to obtain the method.
      * @return privileged action to get the method.
-     *         The action could return {@code null} if the method is not present.
-     *
+     * The action could return {@code null} if the method is not present.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     @SuppressWarnings("unchecked")
@@ -779,8 +779,7 @@ public class ReflectionHelper {
      *
      * @param clazz class for which to get the method.
      * @return privileged action to obtain the method.
-     *         The action could return {@code null} if the method is not present.
-     *
+     * The action could return {@code null} if the method is not present.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     @SuppressWarnings("unchecked")
@@ -789,14 +788,14 @@ public class ReflectionHelper {
     }
 
     /**
-     * Get privileged action to get the static method of given name. If run using security manager, the returned privileged action
+     * Get privileged action to get the static method of given name. If run using security manager, the returned privileged
+     * action
      * must be invoked within a doPrivileged block.
      *
-     * @param clazz class for which to get the method.
+     * @param clazz      class for which to get the method.
      * @param methodName name of the method to be obtained.
      * @return privileged action to obtain the method.
-     *         The action could return {@code null} if the method is not present.
-     *
+     * The action could return {@code null} if the method is not present.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     private static PrivilegedAction<Method> getStringToObjectMethodPA(final Class<?> clazz, final String methodName) {
@@ -823,8 +822,7 @@ public class ReflectionHelper {
      *
      * @param c The class for which to obtain the constructor.
      * @return privileged action to obtain the constructor.
-     *         The action could return {@code null} if the constructor is not present.
-     *
+     * The action could return {@code null} if the constructor is not present.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<Constructor> getStringConstructorPA(final Class<?> c) {
@@ -851,10 +849,8 @@ public class ReflectionHelper {
      *                         types of all attached annotations will be returned).
      * @return list of annotation types with a given meta annotation
      */
-    public static Collection<Class<? extends Annotation>> getAnnotationTypes(
-            final AnnotatedElement annotatedElement,
-            final Class<? extends Annotation> metaAnnotation
-    ) {
+    public static Collection<Class<? extends Annotation>> getAnnotationTypes(final AnnotatedElement annotatedElement,
+                                                                             final Class<? extends Annotation> metaAnnotation) {
         final Set<Class<? extends Annotation>> result = Sets.newIdentityHashSet();
         for (final Annotation a : annotatedElement.getAnnotations()) {
             final Class<? extends Annotation> aType = a.annotationType();
@@ -893,7 +889,6 @@ public class ReflectionHelper {
      * information will be computed using the {@link javax.ws.rs.core.GenericEntity#getType()}
      * information. Otherwise the {@code instance.getClass()} will be used.
      * </p>
-     *
      *
      * @param instance Java instance for which the {@code GenericType} description should be created.
      * @return {@code GenericType} describing the Java {@code instance}.
@@ -981,10 +976,12 @@ public class ReflectionHelper {
          */
         public final Type genericInterface;
 
-        private DeclaringClassInterfacePair(final Class<?> concreteClass, final Class<?> declaringClass, final Type genericInteface) {
+        private DeclaringClassInterfacePair(final Class<?> concreteClass,
+                                            final Class<?> declaringClass,
+                                            final Type genericInterface) {
             this.concreteClass = concreteClass;
             this.declaringClass = declaringClass;
-            this.genericInterface = genericInteface;
+            this.genericInterface = genericInterface;
         }
     }
 
@@ -994,7 +991,7 @@ public class ReflectionHelper {
      *
      * @param p the declaring class
      * @return the parameterized class arguments, or null if the generic
-     *         interface type is not a parameterized type.
+     * interface type is not a parameterized type.
      */
     public static Class[] getParameterizedClassArguments(final DeclaringClassInterfacePair p) {
         if (p.genericInterface instanceof ParameterizedType) {
@@ -1033,7 +1030,7 @@ public class ReflectionHelper {
      *
      * @param p the declaring class
      * @return the parameterized type arguments, or null if the generic
-     *         interface type is not a parameterized type.
+     * interface type is not a parameterized type.
      */
     public static Type[] getParameterizedTypeArguments(final DeclaringClassInterfacePair p) {
         if (p.genericInterface instanceof ParameterizedType) {
@@ -1069,7 +1066,7 @@ public class ReflectionHelper {
      *                 implements or extends an interface class.
      * @param iface    the interface class.
      * @return the tuple of the declaring class and the generic interface
-     *         type.
+     * type.
      */
     public static DeclaringClassInterfacePair getClass(final Class<?> concrete, final Class<?> iface) {
         return getClass(concrete, iface, concrete);
@@ -1090,7 +1087,10 @@ public class ReflectionHelper {
         return getClass(concrete, iface, c);
     }
 
-    private static DeclaringClassInterfacePair getType(final Class<?> concrete, final Class<?> iface, final Class<?> c, final Type[] ts) {
+    private static DeclaringClassInterfacePair getType(final Class<?> concrete,
+                                                       final Class<?> iface,
+                                                       final Class<?> c,
+                                                       final Type[] ts) {
         for (final Type t : ts) {
             final DeclaringClassInterfacePair p = getType(concrete, iface, c, t);
             if (p != null) {
@@ -1100,7 +1100,10 @@ public class ReflectionHelper {
         return null;
     }
 
-    private static DeclaringClassInterfacePair getType(final Class<?> concrete, final Class<?> iface, final Class<?> c, final Type t) {
+    private static DeclaringClassInterfacePair getType(final Class<?> concrete,
+                                                       final Class<?> iface,
+                                                       final Class<?> c,
+                                                       final Type t) {
         if (t instanceof Class) {
             if (t == iface) {
                 return new DeclaringClassInterfacePair(concrete, c, t);
@@ -1129,7 +1132,7 @@ public class ReflectionHelper {
      * @param rawResolvedType     raw class of the generic type to be resolved.
      * @param genericResolvedType generic type information of th type to be resolved.
      * @return a pair of class and the generic type values with the the resolved
-     *         generic parameter types.
+     * generic parameter types.
      */
     public static ClassTypePair resolveGenericType(final Class concreteClass, final Class declaringClass,
                                                    final Class rawResolvedType, final Type genericResolvedType) {
@@ -1198,7 +1201,7 @@ public class ReflectionHelper {
      * @param dc the declaring class where the type variable was defined.
      * @param tv the type variable.
      * @return the resolved Java class and type, otherwise null if the type variable
-     *         could not be resolved.
+     * could not be resolved.
      */
     public static ClassTypePair resolveTypeVariable(final Class<?> c, final Class<?> dc, final TypeVariable tv) {
         return resolveTypeVariable(c, dc, tv, new HashMap<TypeVariable, Type>());
@@ -1311,29 +1314,28 @@ public class ReflectionHelper {
      * @param c the class to search for a public method
      * @param m the method to find
      * @return privileged action to return public method found.
-     *
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<Method> findMethodOnClassPA(final Class<?> c, final Method m) {
-            return new PrivilegedAction<Method>() {
-                @Override
-                public Method run() {
-                    try {
-                        return c.getMethod(m.getName(), m.getParameterTypes());
-                    } catch (final NoSuchMethodException nsme) {
-                            for (final Method _m : c.getMethods()) {
-                                if (_m.getName().equals(m.getName())
-                                        && _m.getParameterTypes().length == m.getParameterTypes().length) {
-                                    if (compareParameterTypes(m.getGenericParameterTypes(),
-                                            _m.getGenericParameterTypes())) {
-                                        return _m;
-                                    }
+        return new PrivilegedAction<Method>() {
+            @Override
+            public Method run() {
+                try {
+                    return c.getMethod(m.getName(), m.getParameterTypes());
+                } catch (final NoSuchMethodException nsme) {
+                    for (final Method _m : c.getMethods()) {
+                        if (_m.getName().equals(m.getName())
+                                && _m.getParameterTypes().length == m.getParameterTypes().length) {
+                            if (compareParameterTypes(m.getGenericParameterTypes(),
+                                    _m.getGenericParameterTypes())) {
+                                return _m;
                             }
                         }
-                        return null;
                     }
+                    return null;
                 }
-            };
+            }
+        };
     }
 
     /**
@@ -1341,14 +1343,14 @@ public class ReflectionHelper {
      * the public <em>member</em> methods of the supplied class or interface
      * object, including those declared by the class or interface and those
      * inherited from superclasses and superinterfaces.
-     *
+     * <p/>
      * Array classes return all the (public) member methods
      * inherited from the {@code Object} class.  The elements in the array
      * returned are not sorted and are not in any particular order.  This
      * method returns action providing an array of length 0 if this {@code Class} object
      * represents a class or interface that has no public member methods, or if
      * this {@code Class} object represents a primitive type or void.
-     *
+     * <p/>
      * <p>
      * The class initialization method {@code <clinit>} is not
      * included in the returned array. If the class declares multiple public
@@ -1361,8 +1363,7 @@ public class ReflectionHelper {
      *
      * @param c class for which the methods should be returned.
      * @return privileged action to obtain an array of {@code Method} objects representing the
-     *         public methods of the class.
-     *
+     * public methods of the class.
      * @see AccessController#doPrivileged(java.security.PrivilegedAction)
      */
     public static PrivilegedAction<Method[]> getMethodsPA(final Class<?> c) {
@@ -1457,7 +1458,8 @@ public class ReflectionHelper {
         return true;
     }
 
-    private final static Class<?> bundleReferenceClass = AccessController.doPrivileged(classForNamePA("org.osgi.framework.BundleReference", null));
+    private static final Class<?> bundleReferenceClass = AccessController.doPrivileged(
+            classForNamePA("org.osgi.framework.BundleReference", null));
 
     /**
      * Returns an {@link OsgiRegistry} instance.
@@ -1483,7 +1485,8 @@ public class ReflectionHelper {
      * will be taken from the provided loader getResourceAsStream method.
      *
      * @param loader      class loader where to lookup the resource in non-OSGi environment or if OSGi means fail.
-     * @param originClass if not null, and OSGi environment is detected, the resource will be taken from the bundle including the originClass type.
+     * @param originClass if not null, and OSGi environment is detected, the resource will be taken from the bundle including
+     *                    the originClass type.
      * @param name        filename of the desired resource.
      * @return an input stream corresponding to the required resource or null if the resource could not be found.
      */
@@ -1504,9 +1507,4 @@ public class ReflectionHelper {
         return loader.getResourceAsStream(name);
     }
 
-    /**
-     * Prevents instantiation.
-     */
-    private ReflectionHelper() {
-    }
 }

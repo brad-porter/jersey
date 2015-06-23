@@ -50,17 +50,20 @@ import org.glassfish.jersey.message.internal.MediaTypes;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
 
 import org.junit.Ignore;
 import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.runner.RunWith;
+
 /**
  * @author Jakub Podlesak (jakub.podlesak at oracle.com)
  */
+@RunWith(ConcurrentRunner.class)
 public class JacksonTest extends JerseyTest {
 
     @Override
@@ -107,14 +110,16 @@ public class JacksonTest extends JerseyTest {
     @Test
     public void testEmptyArrayBean() {
         WebTarget target = target();
-        EmptyArrayBean responseMsg = target.path("emptyArrayResource").request(MediaType.APPLICATION_JSON).get(EmptyArrayBean.class);
+        EmptyArrayBean responseMsg = target.path("emptyArrayResource").request(MediaType.APPLICATION_JSON)
+                .get(EmptyArrayBean.class);
         assertNotNull(responseMsg);
     }
 
     @Test
     public void testCombinedAnnotationBean() {
         WebTarget target = target();
-        CombinedAnnotationBean responseMsg = target.path("combinedAnnotations").request("application/json").get(CombinedAnnotationBean.class);
+        CombinedAnnotationBean responseMsg = target.path("combinedAnnotations").request("application/json")
+                .get(CombinedAnnotationBean.class);
         assertNotNull(responseMsg);
     }
 

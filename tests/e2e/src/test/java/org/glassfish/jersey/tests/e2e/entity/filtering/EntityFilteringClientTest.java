@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2013-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -52,20 +52,23 @@ import javax.ws.rs.core.Application;
 import javax.ws.rs.core.MediaType;
 
 import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.internal.inject.CustomAnnotationImpl;
+import org.glassfish.jersey.internal.inject.CustomAnnotationLiteral;
 import org.glassfish.jersey.message.filtering.EntityFilteringFeature;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.TestProperties;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
 import org.glassfish.jersey.tests.e2e.entity.filtering.domain.ManyFilteringsOnClassEntity;
 import org.glassfish.jersey.tests.e2e.entity.filtering.domain.OneFilteringOnClassEntity;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
  * @author Michal Gajdos (michal.gajdos at oracle.com)
  */
+@RunWith(ConcurrentRunner.class)
 public class EntityFilteringClientTest extends EntityFilteringTest {
 
     public static final MediaType ENTITY_FILTERING = new MediaType("entity", "filtering");
@@ -101,23 +104,22 @@ public class EntityFilteringClientTest extends EntityFilteringTest {
         final String fields = target()
                 .request()
                 .post(Entity.entity(
-                        new OneFilteringOnClassEntity(),
-                        ENTITY_FILTERING,
-                        new Annotation[]{PrimaryDetailedView.Factory.get()}),
+                                new OneFilteringOnClassEntity(),
+                                ENTITY_FILTERING,
+                                new Annotation[] {PrimaryDetailedView.Factory.get()}),
                         String.class);
 
-        assertSameFields(fields, "field,accessor,property,subEntities.field2,subEntities.property2,subEntities.property1," +
-                "subEntities.field1,defaultEntities.field,defaultEntities.property");
+        assertSameFields(fields, "field,accessor,property,subEntities.field2,subEntities.property2,subEntities.property1,"
+                + "subEntities.field1,defaultEntities.field,defaultEntities.property");
     }
 
     @Test
     public void testEntityAnnotationsDefaultView() throws Exception {
         final String fields = target()
                 .request()
-                .post(Entity.entity(
-                        new OneFilteringOnClassEntity(),
-                        ENTITY_FILTERING,
-                        new Annotation[]{new DefaultFilteringScope()}),
+                .post(Entity.entity(new OneFilteringOnClassEntity(),
+                                ENTITY_FILTERING,
+                                new Annotation[] {new DefaultFilteringScope()}),
                         String.class);
 
         assertThat(fields, equalTo(""));
@@ -128,9 +130,9 @@ public class EntityFilteringClientTest extends EntityFilteringTest {
         final String fields = target()
                 .request()
                 .post(Entity.entity(
-                        new OneFilteringOnClassEntity(),
-                        ENTITY_FILTERING,
-                        new Annotation[]{new CustomAnnotationImpl()}),
+                                new OneFilteringOnClassEntity(),
+                                ENTITY_FILTERING,
+                                new Annotation[] {CustomAnnotationLiteral.INSTANCE}),
                         String.class);
 
         assertThat(fields, equalTo(""));
@@ -138,8 +140,8 @@ public class EntityFilteringClientTest extends EntityFilteringTest {
 
     @Test
     public void testConfigurationPrimaryView() throws Exception {
-        testConfiguration("field,accessor,property,subEntities.field2,subEntities.property2,subEntities.property1," +
-                "subEntities.field1,defaultEntities.field,defaultEntities.property", PrimaryDetailedView.Factory.get());
+        testConfiguration("field,accessor,property,subEntities.field2,subEntities.property2,subEntities.property1,"
+                + "subEntities.field1,defaultEntities.field,defaultEntities.property", PrimaryDetailedView.Factory.get());
     }
 
     @Test
@@ -149,9 +151,9 @@ public class EntityFilteringClientTest extends EntityFilteringTest {
 
     @Test
     public void testConfigurationMultipleViews() throws Exception {
-        testConfiguration("field,accessor,property,subEntities.field2,subEntities.property2,subEntities.property1," +
-                "subEntities.field1,defaultEntities.field,defaultEntities.property", PrimaryDetailedView.Factory.get(),
-                new CustomAnnotationImpl());
+        testConfiguration("field,accessor,property,subEntities.field2,subEntities.property2,subEntities.property1,"
+                        + "subEntities.field1,defaultEntities.field,defaultEntities.property", PrimaryDetailedView.Factory.get(),
+                CustomAnnotationLiteral.INSTANCE);
     }
 
     private void testConfiguration(final String expected, final Annotation... annotations) {
@@ -175,9 +177,9 @@ public class EntityFilteringClientTest extends EntityFilteringTest {
 
         final String fields =
                 ClientBuilder.newClient(config)
-                    .target(getBaseUri())
-                    .request()
-                    .post(Entity.entity(new OneFilteringOnClassEntity(), ENTITY_FILTERING), String.class);
+                        .target(getBaseUri())
+                        .request()
+                        .post(Entity.entity(new OneFilteringOnClassEntity(), ENTITY_FILTERING), String.class);
 
         assertThat(fields, equalTo(""));
     }
@@ -192,12 +194,13 @@ public class EntityFilteringClientTest extends EntityFilteringTest {
                 .target(getBaseUri())
                 .request()
                 .post(Entity.entity(
-                        new ManyFilteringsOnClassEntity(),
-                        ENTITY_FILTERING,
-                        new Annotation[]{PrimaryDetailedView.Factory.get()}),
+                                new ManyFilteringsOnClassEntity(),
+                                ENTITY_FILTERING,
+                                new Annotation[] {PrimaryDetailedView.Factory.get()}),
                         String.class);
 
-        assertSameFields(fields, "field,accessor,property,manyEntities.property1,manyEntities.field1,oneEntities.field2," +
-                "oneEntities.property2,oneEntities.property1,oneEntities.field1,defaultEntities.field,defaultEntities.property");
+        assertSameFields(fields, "field,accessor,property,manyEntities.property1,manyEntities.field1,oneEntities.field2,"
+                + "oneEntities.property2,oneEntities.property1,oneEntities.field1,defaultEntities.field,defaultEntities"
+                + ".property");
     }
 }

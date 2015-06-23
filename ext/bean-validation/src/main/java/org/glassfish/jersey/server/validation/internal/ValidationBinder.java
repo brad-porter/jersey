@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -46,7 +46,6 @@ import java.util.WeakHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.validation.ValidationException;
 import javax.ws.rs.container.ResourceContext;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
@@ -58,6 +57,7 @@ import javax.inject.Singleton;
 import javax.validation.Configuration;
 import javax.validation.TraversableResolver;
 import javax.validation.Validation;
+import javax.validation.ValidationException;
 import javax.validation.ValidationProviderResolver;
 import javax.validation.Validator;
 import javax.validation.ValidatorContext;
@@ -67,12 +67,16 @@ import javax.validation.spi.ValidationProvider;
 import org.glassfish.jersey.internal.ServiceFinder;
 import org.glassfish.jersey.internal.util.PropertiesHelper;
 import org.glassfish.jersey.internal.util.ReflectionHelper;
+import org.glassfish.jersey.model.internal.RankedComparator;
+import org.glassfish.jersey.model.internal.RankedProvider;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.server.internal.inject.ConfiguredValidator;
+import org.glassfish.jersey.server.spi.ValidationInterceptor;
 import org.glassfish.jersey.server.validation.ValidationConfig;
 
 import org.glassfish.hk2.api.Factory;
 import org.glassfish.hk2.api.PerLookup;
+import org.glassfish.hk2.api.ServiceLocator;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 
 /**
@@ -111,21 +115,22 @@ public class ValidationBinder extends AbstractBinder {
                 if (!inOsgi) {
                     return Validation.byDefaultProvider().configure();
                 } else {
-                    return Validation.
-                            byDefaultProvider().
-                            providerResolver(new ValidationProviderResolver() {
+                    return Validation
+                            .byDefaultProvider()
+                            .providerResolver(new ValidationProviderResolver() {
                                 @Override
                                 public List<ValidationProvider<?>> getValidationProviders() {
                                     final List<ValidationProvider<?>> validationProviders = new ArrayList<>();
 
-                                    for (final ValidationProvider validationProvider : ServiceFinder.find(ValidationProvider.class)) {
+                                    for (final ValidationProvider validationProvider : ServiceFinder
+                                            .find(ValidationProvider.class)) {
                                         validationProviders.add(validationProvider);
                                     }
 
                                     return validationProviders;
                                 }
-                            }).
-                            configure();
+                            })
+                            .configure();
                 }
             } catch (final ValidationException e) {
                 // log and re-trow
@@ -184,6 +189,9 @@ public class ValidationBinder extends AbstractBinder {
     private static class ConfiguredValidatorProvider implements Factory<ConfiguredValidator> {
 
         @Inject
+        private ServiceLocator locator;
+
+        @Inject
         private Configuration validationConfig;
         @Inject
         private ValidatorFactory factory;
@@ -202,6 +210,7 @@ public class ValidationBinder extends AbstractBinder {
 
         @Override
         public ConfiguredValidator provide() {
+
             // Custom Configuration.
             final ContextResolver<ValidationConfig> contextResolver =
                     providers.getContextResolver(ValidationConfig.class, MediaType.WILDCARD_TYPE);
@@ -240,11 +249,19 @@ public class ValidationBinder extends AbstractBinder {
                     }
 
                     validatorCache.put(contextResolver,
-                            new ConfiguredValidatorImpl(context.getValidator(), this.validationConfig, validateOnExecutionHandler));
+                            new DefaultConfiguredValidator(context.getValidator(), this.validationConfig,
+                                    validateOnExecutionHandler, getValidationInterceptors()));
                 }
 
                 return validatorCache.get(contextResolver);
             }
+        }
+
+        private Iterable<ValidationInterceptor> getValidationInterceptors() {
+            final Iterable<RankedProvider<ValidationInterceptor>> validationInterceptorIterable =
+                    org.glassfish.jersey.internal.inject.Providers.getAllRankedProviders(locator, ValidationInterceptor.class);
+            return org.glassfish.jersey.internal.inject.Providers.sortRankedProviders(
+                    new RankedComparator<ValidationInterceptor>(), validationInterceptorIterable);
         }
 
         /**
@@ -258,7 +275,8 @@ public class ValidationBinder extends AbstractBinder {
                         new ValidateOnExecutionHandler(validationConfig, !isValidateOnExecutableOverrideCheckDisabled());
                 final Validator validator = getDefaultValidatorContext(validateOnExecutionHandler).getValidator();
 
-                defaultValidator = new ConfiguredValidatorImpl(validator, validationConfig, validateOnExecutionHandler);
+                defaultValidator = new DefaultConfiguredValidator(validator, validationConfig,
+                        validateOnExecutionHandler, getValidationInterceptors());
             }
             return defaultValidator;
         }

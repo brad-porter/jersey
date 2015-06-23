@@ -70,6 +70,7 @@ import org.glassfish.jersey.server.ResourceConfig;
 
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONObject;
+import org.glassfish.jersey.client.ClientResponse;
 import org.junit.Test;
 
 /**
@@ -151,14 +152,14 @@ public class CharsetTest extends AbstractTypeTester {
         for (String charset : CHARSETS) {
             Response r = t.path(charset).request().post(Entity.entity(in, "text/plain;charset=" + charset));
 
-            byte[] inBytes = requestEntity;
+            byte[] inBytes = getRequestEntity();
             byte[] outBytes = getEntityAsByteArray(r);
 
             _verify(inBytes, outBytes);
         }
     }
 
-    public static abstract class CharsetResource<T> {
+    public abstract static class CharsetResource<T> {
 
         @Context
         HttpHeaders h;
@@ -187,7 +188,7 @@ public class CharsetTest extends AbstractTypeTester {
 
     @Test
     public void testFormMultivaluedMapRepresentation() {
-        MultivaluedMap<String, String> map = new MultivaluedHashMap<String, String>();
+        MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
 
         map.add("name", "\u00A9 CONTENT \u00FF \u2200 \u22FF");
         map.add("name", "� � �");
@@ -216,10 +217,10 @@ public class CharsetTest extends AbstractTypeTester {
     @Test
     public void testJSONObjectRepresentation() throws Exception {
         JSONObject object = new JSONObject();
-        object.put("userid", 1234).
-                put("username", CONTENT).
-                put("email", "a@b").
-                put("password", "****");
+        object.put("userid", 1234)
+                .put("username", CONTENT)
+                .put("email", "a@b")
+                .put("password", "****");
 
         _test(object, JSONObjectResource.class, MediaType.APPLICATION_JSON_TYPE);
     }
@@ -272,7 +273,7 @@ public class CharsetTest extends AbstractTypeTester {
         WebTarget t = target("/JAXBBeanResource");
         for (String charset : CHARSETS) {
             Response rib = t.request().post(Entity.entity(in, "application/json;charset=" + charset));
-            byte[] inBytes = requestEntity;
+            byte[] inBytes = getRequestEntity();
             byte[] outBytes = getEntityAsByteArray(rib);
             _verify(inBytes, outBytes);
         }
@@ -288,7 +289,7 @@ public class CharsetTest extends AbstractTypeTester {
         WebTarget t = target("/ReaderResource");
         for (String charset : CHARSETS) {
             Response rib = t.request().post(Entity.entity(new StringReader(CONTENT), "text/plain;charset=" + charset));
-            byte[] inBytes = requestEntity;
+            byte[] inBytes = getRequestEntity();
             byte[] outBytes = getEntityAsByteArray(rib);
             _verify(inBytes, outBytes);
         }
@@ -303,11 +304,11 @@ public class CharsetTest extends AbstractTypeTester {
     public <T> void _test(T in, Class resource, MediaType m) {
         WebTarget t = target(resource.getSimpleName());
         for (String charset : CHARSETS) {
-            Map<String, String> p = new HashMap<String, String>();
+            Map<String, String> p = new HashMap<>();
             p.put("charset", charset);
             MediaType _m = new MediaType(m.getType(), m.getSubtype(), p);
             Response rib = t.request().post(Entity.entity(in, _m));
-            byte[] inBytes = requestEntity;
+            byte[] inBytes = getRequestEntity();
             byte[] outBytes = getEntityAsByteArray(rib);
             _verify(inBytes, outBytes);
         }

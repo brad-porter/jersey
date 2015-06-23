@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -75,6 +75,7 @@ import javax.xml.namespace.QName;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.moxy.xml.MoxyXmlFeature;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
 
 import org.junit.Test;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -82,10 +83,12 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import org.junit.runner.RunWith;
 
 /**
  * @author Pavel Bucek (pavel.bucek at oracle.com)
  */
+@RunWith(ConcurrentRunner.class)
 public class XmlMoxyTest extends AbstractTypeTester {
 
     @Path("JaxbBeanResource")
@@ -112,10 +115,10 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
     @Test
     public void testJaxbBeanRepresentationError() {
-        WebTarget target = target("JaxbBeanResource");
+        final WebTarget target = target("JaxbBeanResource");
 
-        String xml = "<root>foo</root>";
-        Response cr = target.request().post(Entity.entity(xml, "application/xml"));
+        final String xml = "<root>foo</root>";
+        final Response cr = target.request().post(Entity.entity(xml, "application/xml"));
         assertEquals(400, cr.getStatus());
     }
 
@@ -156,17 +159,20 @@ public class XmlMoxyTest extends AbstractTypeTester {
         _testListOrArray(true, MediaType.APPLICATION_XML_TYPE);
     }
 
-    public void _testListOrArray(boolean isList, MediaType mt) {
-        Object in = isList ? getJAXBElementList() : getJAXBElementArray();
-        GenericType gt = isList ? new GenericType<List<JAXBElement<String>>>() {
+    @SuppressWarnings("unchecked")
+    public void _testListOrArray(final boolean isList, final MediaType mt) {
+        final Object in = isList ? getJAXBElementList() : getJAXBElementArray();
+        final GenericType gt = isList ? new GenericType<List<JAXBElement<String>>>() {
         } : new GenericType<JAXBElement<String>[]>() {
         };
 
-        WebTarget target = target(isList ? "JAXBElementListResource" : "JAXBElementArrayResource");
-        Object out = target.request(mt).post(Entity.entity(new GenericEntity(in, gt.getType()), mt), gt);
+        final WebTarget target = target(isList ? "JAXBElementListResource" : "JAXBElementArrayResource");
+        final Object out = target.request(mt).post(Entity.entity(new GenericEntity(in, gt.getType()), mt), gt);
 
-        List<JAXBElement<String>> inList = isList ? ((List<JAXBElement<String>>) in) : Arrays.asList((JAXBElement<String>[]) in);
-        List<JAXBElement<String>> outList = isList ? ((List<JAXBElement<String>>) out) : Arrays.asList((JAXBElement<String>[]) out);
+        final List<JAXBElement<String>> inList =
+                isList ? ((List<JAXBElement<String>>) in) : Arrays.asList((JAXBElement<String>[]) in);
+        final List<JAXBElement<String>> outList = isList ? ((List<JAXBElement<String>>) out) : Arrays
+                .asList((JAXBElement<String>[]) out);
         assertEquals("Lengths differ", inList.size(), outList.size());
         for (int i = 0; i < inList.size(); i++) {
             assertEquals("Names of elements at index " + i + " differ", inList.get(i).getName(), outList.get(i).getName());
@@ -181,7 +187,8 @@ public class XmlMoxyTest extends AbstractTypeTester {
     }
 
     private JAXBElement<String>[] getJAXBElementArray() {
-        return new JAXBElement[]{
+        //noinspection unchecked
+        return new JAXBElement[] {
                 new JAXBElement(QName.valueOf("element1"), String.class, "ahoj"),
                 new JAXBElement(QName.valueOf("element2"), String.class, "nazdar")
         };
@@ -205,10 +212,10 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
     @Test
     public void testJAXBElementBeanRepresentationError() {
-        WebTarget target = target("JAXBElementBeanResource");
+        final WebTarget target = target("JAXBElementBeanResource");
 
-        String xml = "<root><value>foo";
-        Response cr = target.request().post(Entity.entity(xml, "application/xml"));
+        final String xml = "<root><value>foo";
+        final Response cr = target.request().post(Entity.entity(xml, "application/xml"));
         assertEquals(400, cr.getStatus());
     }
 
@@ -227,8 +234,9 @@ public class XmlMoxyTest extends AbstractTypeTester {
     @Produces("application/xml")
     @Consumes("application/xml")
     public static class JAXBTypeResource {
+
         @POST
-        public JaxbBean post(JaxbBeanType t) {
+        public JaxbBean post(final JaxbBeanType t) {
             return new JaxbBean(t.value);
         }
     }
@@ -239,16 +247,16 @@ public class XmlMoxyTest extends AbstractTypeTester {
     }
 
     @Override
-    protected void configureClient(ClientConfig config) {
+    protected void configureClient(final ClientConfig config) {
         super.configureClient(config);
         config.register(new MoxyXmlFeature(SimpleBean.class));
     }
 
     @Test
     public void testJAXBTypeRepresentation() {
-        WebTarget target = target("JAXBTypeResource");
-        JaxbBean in = new JaxbBean("CONTENT");
-        JaxbBeanType out = target.request().post(Entity.entity(in, "application/xml"), JaxbBeanType.class);
+        final WebTarget target = target("JAXBTypeResource");
+        final JaxbBean in = new JaxbBean("CONTENT");
+        final JaxbBeanType out = target.request().post(Entity.entity(in, "application/xml"), JaxbBeanType.class);
         assertEquals(in.value, out.value);
     }
 
@@ -260,30 +268,31 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
     @Test
     public void testJAXBTypeRepresentationMediaType() {
-        WebTarget target = target("JAXBTypeResourceMediaType");
-        JaxbBean in = new JaxbBean("CONTENT");
-        JaxbBeanType out = target.request().post(Entity.entity(in, "application/foo+xml"), JaxbBeanType.class);
+        final WebTarget target = target("JAXBTypeResourceMediaType");
+        final JaxbBean in = new JaxbBean("CONTENT");
+        final JaxbBeanType out = target.request().post(Entity.entity(in, "application/foo+xml"), JaxbBeanType.class);
         assertEquals(in.value, out.value);
     }
-
 
     @Path("JAXBObjectResource")
     @Produces("application/xml")
     @Consumes("application/xml")
     public static class JAXBObjectResource {
+
         @POST
-        public Object post(Object o) {
+        public Object post(final Object o) {
             return o;
         }
     }
 
     @Provider
     public static class JAXBObjectResolver implements ContextResolver<JAXBContext> {
-        public JAXBContext getContext(Class<?> c) {
+
+        public JAXBContext getContext(final Class<?> c) {
             if (Object.class == c) {
                 try {
                     return JAXBContext.newInstance(JaxbBean.class);
-                } catch (JAXBException ex) {
+                } catch (final JAXBException ex) {
                     // NOOP.
                 }
             }
@@ -293,9 +302,9 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
     @Test
     public void testJAXBObjectRepresentation() {
-        WebTarget target = target("JAXBObjectResource");
-        Object in = new JaxbBean("CONTENT");
-        JaxbBean out = target.request().post(Entity.entity(in, "application/xml"), JaxbBean.class);
+        final WebTarget target = target("JAXBObjectResource");
+        final Object in = new JaxbBean("CONTENT");
+        final JaxbBean out = target.request().post(Entity.entity(in, "application/xml"), JaxbBean.class);
         assertEquals(in, out);
     }
 
@@ -307,19 +316,18 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
     @Test
     public void testJAXBObjectRepresentationMediaType() {
-        WebTarget target = target("JAXBObjectResourceMediaType");
-        Object in = new JaxbBean("CONTENT");
-        JaxbBean out = target.request().post(Entity.entity(in, "application/foo+xml"), JaxbBean.class);
+        final WebTarget target = target("JAXBObjectResourceMediaType");
+        final Object in = new JaxbBean("CONTENT");
+        final JaxbBean out = target.request().post(Entity.entity(in, "application/foo+xml"), JaxbBean.class);
         assertEquals(in, out);
     }
 
-
     @Test
     public void testJAXBObjectRepresentationError() {
-        WebTarget target = target("JAXBObjectResource");
+        final WebTarget target = target("JAXBObjectResource");
 
-        String xml = "<root>foo</root>";
-        Response cr = target.request().post(Entity.entity(xml, "application/xml"));
+        final String xml = "<root>foo</root>";
+        final Response cr = target.request().post(Entity.entity(xml, "application/xml"));
         assertEquals(400, cr.getStatus());
     }
 
@@ -327,38 +335,39 @@ public class XmlMoxyTest extends AbstractTypeTester {
     @Produces("application/xml")
     @Consumes("application/xml")
     public static class JAXBListResource {
+
         @POST
-        public List<JaxbBean> post(List<JaxbBean> l) {
+        public List<JaxbBean> post(final List<JaxbBean> l) {
             return l;
         }
 
         @POST
         @Path("set")
-        public Set<JaxbBean> postSet(Set<JaxbBean> l) {
+        public Set<JaxbBean> postSet(final Set<JaxbBean> l) {
             return l;
         }
 
         @POST
         @Path("queue")
-        public Queue<JaxbBean> postQueue(Queue<JaxbBean> l) {
+        public Queue<JaxbBean> postQueue(final Queue<JaxbBean> l) {
             return l;
         }
 
         @POST
         @Path("stack")
-        public Stack<JaxbBean> postStack(Stack<JaxbBean> l) {
+        public Stack<JaxbBean> postStack(final Stack<JaxbBean> l) {
             return l;
         }
 
         @POST
         @Path("custom")
-        public MyArrayList<JaxbBean> postCustom(MyArrayList<JaxbBean> l) {
+        public MyArrayList<JaxbBean> postCustom(final MyArrayList<JaxbBean> l) {
             return l;
         }
 
         @GET
         public Collection<JaxbBean> get() {
-            ArrayList<JaxbBean> l = new ArrayList<JaxbBean>();
+            final ArrayList<JaxbBean> l = new ArrayList<>();
             l.add(new JaxbBean("one"));
             l.add(new JaxbBean("two"));
             l.add(new JaxbBean("three"));
@@ -367,10 +376,11 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
         @POST
         @Path("type")
-        public List<JaxbBean> postType(Collection<JaxbBeanType> l) {
-            List<JaxbBean> beans = new ArrayList<JaxbBean>();
-            for (JaxbBeanType t : l)
+        public List<JaxbBean> postType(final Collection<JaxbBeanType> l) {
+            final List<JaxbBean> beans = new ArrayList<>();
+            for (final JaxbBeanType t : l) {
                 beans.add(new JaxbBean(t.value));
+            }
             return beans;
         }
     }
@@ -379,14 +389,15 @@ public class XmlMoxyTest extends AbstractTypeTester {
     @Produces("application/xml")
     @Consumes("application/xml")
     public static class JAXBArrayResource {
+
         @POST
-        public JaxbBean[] post(JaxbBean[] l) {
+        public JaxbBean[] post(final JaxbBean[] l) {
             return l;
         }
 
         @GET
         public JaxbBean[] get() {
-            ArrayList<JaxbBean> l = new ArrayList<JaxbBean>();
+            final ArrayList<JaxbBean> l = new ArrayList<>();
             l.add(new JaxbBean("one"));
             l.add(new JaxbBean("two"));
             l.add(new JaxbBean("three"));
@@ -395,30 +406,32 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
         @POST
         @Path("type")
-        public JaxbBean[] postType(JaxbBeanType[] l) {
-            List<JaxbBean> beans = new ArrayList<JaxbBean>();
-            for (JaxbBeanType t : l)
+        public JaxbBean[] postType(final JaxbBeanType[] l) {
+            final List<JaxbBean> beans = new ArrayList<>();
+            for (final JaxbBeanType t : l) {
                 beans.add(new JaxbBean(t.value));
+            }
             return beans.toArray(new JaxbBean[beans.size()]);
         }
     }
 
     @Test
     public void testJAXBArrayRepresentation() {
-        WebTarget target = target("JAXBArrayResource");
+        final WebTarget target = target("JAXBArrayResource");
 
-        JaxbBean[] a = target.request().get(JaxbBean[].class);
+        final JaxbBean[] a = target.request().get(JaxbBean[].class);
         JaxbBean[] b = target.request().post(Entity.entity(a, "application/xml"), JaxbBean[].class);
         assertEquals(a.length, b.length);
-        for (int i = 0; i < a.length; i++)
+        for (int i = 0; i < a.length; i++) {
             assertEquals(a[i], b[i]);
+        }
 
         b = target.path("type").request().post(Entity.entity(a, "application/xml"), JaxbBean[].class);
         assertEquals(a.length, b.length);
-        for (int i = 0; i < a.length; i++)
+        for (int i = 0; i < a.length; i++) {
             assertEquals(a[i], b[i]);
+        }
     }
-
 
     @Path("JAXBListResourceMediaType")
     @Produces("application/foo+xml")
@@ -428,17 +441,14 @@ public class XmlMoxyTest extends AbstractTypeTester {
 
     @Test
     public void testJAXBListRepresentationMediaType() {
-        WebTarget target = target("JAXBListResourceMediaType");
-
+        final WebTarget target = target("JAXBListResourceMediaType");
 
         Collection<JaxbBean> a = target.request().get(
                 new GenericType<Collection<JaxbBean>>() {
                 });
-        Collection<JaxbBean> b = target.request().
-                post(Entity.entity(new GenericEntity<Collection<JaxbBean>>(a) {
-                }, "application/foo+xml"),
-                        new GenericType<Collection<JaxbBean>>() {
-                        });
+        Collection<JaxbBean> b = target.request()
+                .post(Entity.entity(new GenericEntity<Collection<JaxbBean>>(a) {}, "application/foo+xml"),
+                        new GenericType<Collection<JaxbBean>>() {});
 
         assertEquals(a, b);
 
@@ -447,47 +457,49 @@ public class XmlMoxyTest extends AbstractTypeTester {
         });
         assertEquals(a, b);
 
-        a = new LinkedList<JaxbBean>(a);
+        a = new LinkedList<>(a);
         b = target.path("queue").request().post(Entity.entity(new GenericEntity<Queue<JaxbBean>>((Queue<JaxbBean>) a) {
         }, "application/foo+xml"), new GenericType<Queue<JaxbBean>>() {
         });
         assertEquals(a, b);
 
-        a = new HashSet<JaxbBean>(a);
+        a = new HashSet<>(a);
         b = target.path("set").request().post(Entity.entity(new GenericEntity<Set<JaxbBean>>((Set<JaxbBean>) a) {
         }, "application/foo+xml"), new GenericType<Set<JaxbBean>>() {
         });
-        Comparator<JaxbBean> c = new Comparator<JaxbBean>() {
+        final Comparator<JaxbBean> c = new Comparator<JaxbBean>() {
             @Override
-            public int compare(JaxbBean t, JaxbBean t1) {
+            public int compare(final JaxbBean t, final JaxbBean t1) {
                 return t.value.compareTo(t1.value);
             }
         };
-        TreeSet<JaxbBean> t1 = new TreeSet<JaxbBean>(c), t2 = new TreeSet<JaxbBean>(c);
+        final TreeSet<JaxbBean> t1 = new TreeSet<>(c);
+        final TreeSet<JaxbBean> t2 = new TreeSet<>(c);
         t1.addAll(a);
         t2.addAll(b);
         assertEquals(t1, t2);
 
-        Stack<JaxbBean> s = new Stack<JaxbBean>();
+        final Stack<JaxbBean> s = new Stack<>();
         s.addAll(a);
         b = target.path("stack").request().post(Entity.entity(new GenericEntity<Stack<JaxbBean>>(s) {
         }, "application/foo+xml"), new GenericType<Stack<JaxbBean>>() {
         });
         assertEquals(s, b);
 
-        a = new MyArrayList<JaxbBean>(a);
-        b = target.path("custom").request().post(Entity.entity(new GenericEntity<MyArrayList<JaxbBean>>((MyArrayList<JaxbBean>) a) {
-        }, "application/foo+xml"), new GenericType<MyArrayList<JaxbBean>>() {
-        });
+        a = new MyArrayList<>(a);
+        b = target.path("custom").request()
+                .post(Entity.entity(new GenericEntity<MyArrayList<JaxbBean>>((MyArrayList<JaxbBean>) a) {
+                }, "application/foo+xml"), new GenericType<MyArrayList<JaxbBean>>() {
+                });
         assertEquals(a, b);
     }
 
     @Test
     public void testJAXBListRepresentationError() {
-        WebTarget target = target("JAXBListResource");
+        final WebTarget target = target("JAXBListResource");
 
-        String xml = "<root><value>foo";
-        Response cr = target.request().post(Entity.entity(xml, "application/xml"));
+        final String xml = "<root><value>foo";
+        final Response cr = target.request().post(Entity.entity(xml, "application/xml"));
         assertEquals(400, cr.getStatus());
     }
 

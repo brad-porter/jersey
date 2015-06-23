@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2013-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -62,8 +62,10 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -71,15 +73,16 @@ import static org.junit.Assert.assertThat;
 /**
  * @author Michal Gajdos (michal.gajdos at oracle.com)
  */
+@RunWith(ConcurrentRunner.class)
 public class JsonProcessingTest extends JerseyTest {
 
-    private final static String JSON_OBJECT_STR = "{\"foo\":\"bar\"}";
-    private final static String JSON_ARRAY_STR = "[" + JSON_OBJECT_STR + "," + JSON_OBJECT_STR+ "]";
-    private final static String JSON_ARRAY_VALUE_STR = "[null]";
+    private static final String JSON_OBJECT_STR = "{\"foo\":\"bar\"}";
+    private static final String JSON_ARRAY_STR = "[" + JSON_OBJECT_STR + "," + JSON_OBJECT_STR + "]";
+    private static final String JSON_ARRAY_VALUE_STR = "[null]";
 
-    private final static JsonObject JSON_OBJECT = Json.createReader(new StringReader(JSON_OBJECT_STR)).readObject();
-    private final static JsonArray JSON_ARRAY = Json.createReader(new StringReader(JSON_ARRAY_STR)).readArray();
-    private final static JsonArray JSON_ARRAY_VALUE = Json.createReader(new StringReader(JSON_ARRAY_VALUE_STR)).readArray();
+    private static final JsonObject JSON_OBJECT = Json.createReader(new StringReader(JSON_OBJECT_STR)).readObject();
+    private static final JsonArray JSON_ARRAY = Json.createReader(new StringReader(JSON_ARRAY_STR)).readArray();
+    private static final JsonArray JSON_ARRAY_VALUE = Json.createReader(new StringReader(JSON_ARRAY_VALUE_STR)).readArray();
 
     @Path("/")
     public static class Resource {
@@ -187,7 +190,8 @@ public class JsonProcessingTest extends JerseyTest {
 
     @Test
     public void testJsonObjectAsStringWrongMediaType() throws Exception {
-        final Response response = target("jsonObject").request(MediaType.APPLICATION_OCTET_STREAM).post(Entity.json(JSON_OBJECT_STR));
+        final Response response = target("jsonObject").request(MediaType.APPLICATION_OCTET_STREAM)
+                .post(Entity.json(JSON_OBJECT_STR));
 
         assertEquals(500, response.getStatus());
     }
@@ -257,7 +261,8 @@ public class JsonProcessingTest extends JerseyTest {
 
     @Test
     public void testJsonArraytAsStringWrongMediaType() throws Exception {
-        final Response response = target("jsonArray").request(MediaType.APPLICATION_OCTET_STREAM).post(Entity.json(JSON_ARRAY_STR));
+        final Response response = target("jsonArray").request(MediaType.APPLICATION_OCTET_STREAM)
+                .post(Entity.json(JSON_ARRAY_STR));
 
         assertEquals(500, response.getStatus());
     }

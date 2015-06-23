@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -49,7 +49,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Stack;
 
-import org.glassfish.jersey.server.ResourceFinder;
+import org.glassfish.jersey.server.internal.AbstractResourceFinderAdapter;
 
 /**
  * A "file" scheme URI scanner that recursively scans directories.
@@ -75,11 +75,10 @@ class FileSchemeResourceFinderFactory implements UriSchemeResourceFinderFactory 
         return new FileSchemeScanner(uri, recursive);
     }
 
-    private class FileSchemeScanner implements ResourceFinder {
+    private class FileSchemeScanner extends AbstractResourceFinderAdapter {
 
         private final ResourceFinderStack resourceFinderStack;
         private final boolean recursive;
-
 
         private FileSchemeScanner(final URI uri, boolean recursive) {
             this.resourceFinderStack = new ResourceFinderStack();
@@ -99,11 +98,6 @@ class FileSchemeResourceFinderFactory implements UriSchemeResourceFinderFactory 
         }
 
         @Override
-        public void remove() {
-            resourceFinderStack.remove();
-        }
-
-        @Override
         public InputStream open() {
             return resourceFinderStack.open();
         }
@@ -114,13 +108,13 @@ class FileSchemeResourceFinderFactory implements UriSchemeResourceFinderFactory 
         }
 
         private void processFile(final File f) {
-            resourceFinderStack.push(new ResourceFinder() {
+            resourceFinderStack.push(new AbstractResourceFinderAdapter() {
 
                 Stack<File> files = new Stack<File>() {{
-                    if(f.isDirectory()) {
+                    if (f.isDirectory()) {
                         final File[] subDirFiles = f.listFiles();
                         if (subDirFiles != null) {
-                            for(File file : subDirFiles) {
+                            for (File file : subDirFiles) {
                                 push(file);
                             }
                         }
@@ -134,10 +128,10 @@ class FileSchemeResourceFinderFactory implements UriSchemeResourceFinderFactory 
 
                 @Override
                 public boolean hasNext() {
-                    while(next == null && !files.empty()) {
+                    while (next == null && !files.empty()) {
                         next = files.pop();
 
-                        if(next.isDirectory()) {
+                        if (next.isDirectory()) {
                             if (recursive) {
                                 processFile(next);
                             }
@@ -150,18 +144,13 @@ class FileSchemeResourceFinderFactory implements UriSchemeResourceFinderFactory 
 
                 @Override
                 public String next() {
-                    if(next != null || hasNext()) {
+                    if (next != null || hasNext()) {
                         current = next;
                         next = null;
                         return current.getName();
                     }
 
                     throw new NoSuchElementException();
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
                 }
 
                 @Override

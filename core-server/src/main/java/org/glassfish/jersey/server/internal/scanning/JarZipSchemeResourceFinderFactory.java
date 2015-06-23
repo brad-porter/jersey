@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -51,7 +51,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.glassfish.jersey.server.ResourceFinder;
+import org.glassfish.jersey.server.internal.AbstractResourceFinderAdapter;
 import org.glassfish.jersey.uri.UriComponent;
 
 /**
@@ -87,7 +87,7 @@ class JarZipSchemeResourceFinderFactory implements UriSchemeResourceFinderFactor
         }
     }
 
-    private class JarZipSchemeScanner implements ResourceFinder {
+    private class JarZipSchemeScanner extends AbstractResourceFinderAdapter {
 
         private InputStream inputStream;
         private JarFileScanner jarFileScanner;
@@ -100,7 +100,7 @@ class JarZipSchemeResourceFinderFactory implements UriSchemeResourceFinderFactor
         @Override
         public boolean hasNext() {
             final boolean hasNext = jarFileScanner.hasNext();
-            if(!hasNext) {
+            if (!hasNext) {
                 try {
                     inputStream.close();
                 } catch (IOException e) {
@@ -115,11 +115,6 @@ class JarZipSchemeResourceFinderFactory implements UriSchemeResourceFinderFactor
         @Override
         public String next() {
             return jarFileScanner.next();
-        }
-
-        @Override
-        public void remove() {
-            jarFileScanner.remove();
         }
 
         @Override

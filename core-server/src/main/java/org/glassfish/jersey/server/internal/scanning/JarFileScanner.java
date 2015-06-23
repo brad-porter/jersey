@@ -47,14 +47,14 @@ import java.util.jar.JarInputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.glassfish.jersey.server.ResourceFinder;
+import org.glassfish.jersey.server.internal.AbstractResourceFinderAdapter;
 
 /**
  * A utility class that scans entries in jar files.
  *
  * @author Paul Sandoz
  */
-public final class JarFileScanner implements ResourceFinder {
+public final class JarFileScanner extends AbstractResourceFinderAdapter {
 
     private static final Logger LOGGER = Logger.getLogger(JarFileScanner.class.getName());
     // platform independent file separator within the jar file
@@ -75,7 +75,8 @@ public final class JarFileScanner implements ResourceFinder {
      */
     public JarFileScanner(final InputStream inputStream, final String parent, final boolean recursive) throws IOException {
         this.jarInputStream = new JarInputStream(inputStream);
-        this.parent = (parent.isEmpty() || parent.endsWith(String.valueOf(JAR_FILE_SEPARATOR))) ? parent : parent + JAR_FILE_SEPARATOR;
+        this.parent = (parent.isEmpty() || parent.endsWith(String.valueOf(JAR_FILE_SEPARATOR)))
+                ? parent : parent + JAR_FILE_SEPARATOR;
         this.recursive = recursive;
     }
 
@@ -127,11 +128,6 @@ public final class JarFileScanner implements ResourceFinder {
         }
 
         throw new NoSuchElementException();
-    }
-
-    @Override
-    public void remove() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

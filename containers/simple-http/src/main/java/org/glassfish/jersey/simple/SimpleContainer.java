@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2010-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2010-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -67,10 +67,8 @@ import org.glassfish.jersey.server.ContainerException;
 import org.glassfish.jersey.server.ContainerRequest;
 import org.glassfish.jersey.server.ContainerResponse;
 import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.server.internal.ConfigHelper;
 import org.glassfish.jersey.server.internal.ContainerUtils;
 import org.glassfish.jersey.server.spi.Container;
-import org.glassfish.jersey.server.spi.ContainerLifecycleListener;
 import org.glassfish.jersey.server.spi.ContainerResponseWriter;
 import org.glassfish.jersey.server.spi.RequestScopedInitializer;
 
@@ -90,6 +88,7 @@ import org.simpleframework.http.Status;
  * @author Marek Potociar (marek.potociar at oracle.com)
  */
 public final class SimpleContainer implements org.simpleframework.http.core.Container, Container {
+
     private static final ExtendedLogger logger =
             new ExtendedLogger(Logger.getLogger(SimpleContainer.class.getName()), Level.FINEST);
 
@@ -102,6 +101,7 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
      * Referencing factory for Simple request.
      */
     private static class SimpleRequestReferencingFactory extends ReferencingFactory<Request> {
+
         @Inject
         public SimpleRequestReferencingFactory(final Provider<Ref<Request>> referenceFactory) {
             super(referenceFactory);
@@ -112,6 +112,7 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
      * Referencing factory for Simple response.
      */
     private static class SimpleResponseReferencingFactory extends ReferencingFactory<Response> {
+
         @Inject
         public SimpleResponseReferencingFactory(final Provider<Ref<Response>> referenceFactory) {
             super(referenceFactory);
@@ -141,9 +142,9 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
     }
 
     private volatile ApplicationHandler appHandler;
-    private volatile ContainerLifecycleListener containerListener;
 
     private static final class Writer implements ContainerResponseWriter {
+
         private final Response response;
 
         Writer(final Response response) {
@@ -151,7 +152,8 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
         }
 
         @Override
-        public OutputStream writeResponseStatusAndHeaders(final long contentLength, final ContainerResponse context) throws ContainerException {
+        public OutputStream writeResponseStatusAndHeaders(final long contentLength, final ContainerResponse context)
+                throws ContainerException {
             final javax.ws.rs.core.Response.StatusType statusInfo = context.getStatusInfo();
 
             final int code = statusInfo.getStatusCode();
@@ -198,7 +200,7 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
         public void failure(final Throwable error) {
             try {
                 if (!response.isCommitted()) {
-                    response.setCode(500);
+                    response.setCode(javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR.getStatusCode());
                     response.setDescription(error.getMessage());
                 }
             } finally {
@@ -288,7 +290,6 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
         };
     }
 
-
     private void close(final Response response) {
         try {
             response.close();
@@ -325,11 +326,11 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
 
     @Override
     public void reload(final ResourceConfig configuration) {
-        containerListener.onShutdown(this);
+        appHandler.onShutdown(this);
+
         appHandler = new ApplicationHandler(configuration.register(new SimpleBinder()));
-        containerListener = ConfigHelper.getContainerLifecycleListener(appHandler);
-        containerListener.onReload(this);
-        containerListener.onStartup(this);
+        appHandler.onReload(this);
+        appHandler.onStartup(this);
     }
 
     @Override
@@ -343,7 +344,7 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
      * This method must be implicitly called after the server containing this container is started.
      */
     void onServerStart() {
-        this.containerListener.onStartup(this);
+        appHandler.onStartup(this);
     }
 
     /**
@@ -352,17 +353,17 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
      * This method must be implicitly called before the server containing this container is stopped.
      */
     void onServerStop() {
-        this.containerListener.onShutdown(this);
+        appHandler.onShutdown(this);
     }
 
     /**
      * Create a new Simple framework HTTP container.
      *
      * @param application JAX-RS / Jersey application to be deployed on Simple framework HTTP container.
+     * @param parentLocator parent HK2 service locator.
      */
     SimpleContainer(final Application application, final ServiceLocator parentLocator) {
         this.appHandler = new ApplicationHandler(application, new SimpleBinder(), parentLocator);
-        this.containerListener = ConfigHelper.getContainerLifecycleListener(appHandler);
     }
 
     /**
@@ -372,6 +373,5 @@ public final class SimpleContainer implements org.simpleframework.http.core.Cont
      */
     SimpleContainer(final Application application) {
         this.appHandler = new ApplicationHandler(application, new SimpleBinder());
-        this.containerListener = ConfigHelper.getContainerLifecycleListener(appHandler);
     }
 }

@@ -68,7 +68,6 @@ import org.glassfish.jersey.server.ApplicationHandler;
 import org.glassfish.jersey.server.ContainerException;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
-import org.glassfish.jersey.server.internal.ConfigHelper;
 import org.glassfish.jersey.server.internal.ContainerUtils;
 import org.glassfish.jersey.server.spi.Container;
 import org.glassfish.jersey.server.spi.ContainerLifecycleListener;
@@ -159,7 +158,7 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
     private transient Pattern staticContentPattern;
     private transient String filterContextPath;
 
-    private volatile ContainerLifecycleListener containerListener;
+    private transient volatile ContainerLifecycleListener containerListener;
 
     /**
      * Initiate the Web component.
@@ -169,7 +168,7 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
      */
     protected void init(final WebConfig webConfig) throws ServletException {
         webComponent = new WebComponent(webConfig, resourceConfig);
-        containerListener = ConfigHelper.getContainerLifecycleListener(webComponent.appHandler);
+        containerListener = webComponent.appHandler;
         containerListener.onStartup(this);
     }
 
@@ -243,7 +242,8 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
      * @see javax.servlet.Servlet#service
      */
     @Override
-    protected void service(final HttpServletRequest request, final HttpServletResponse response) throws ServletException, IOException {
+    protected void service(final HttpServletRequest request, final HttpServletResponse response)
+            throws ServletException, IOException {
         /**
          * There is an annoying edge case where the service method is
          * invoked for the case when the URI is equal to the deployment URL
@@ -253,34 +253,34 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
         final StringBuffer requestUrl = request.getRequestURL();
         final String requestURI = request.getRequestURI();
 
-//        final String pathInfo = request.getPathInfo();
-//        final boolean checkPathInfo = pathInfo == null || pathInfo.isEmpty() || pathInfo.equals("/");
-//        if (checkPathInfo && !request.getRequestURI().endsWith("/")) {
-            // Only do this if the last segment of the servlet path does not contain '.'
-            // This handles the case when the extension mapping is used with the servlet
-            // see issue 506
-            // This solution does not require parsing the deployment descriptor,
-            // however still leaves it broken for the very rare case if a standard path
-            // servlet mapping would include dot in the last segment (e.g. /.webresources/*)
-            // and somebody would want to hit the root resource without the trailing slash
-//            final int i = servletPath.lastIndexOf('/');
-//            if (servletPath.substring(i + 1).indexOf('.') < 0) {
-                // TODO (+ handle request URL with invalid characters - see the creation of absoluteUriBuilder below)
-//                if (webComponent.getResourceConfig().getFeature(ResourceConfig.FEATURE_REDIRECT)) {
-//                    URI l = UriBuilder.fromUri(request.getRequestURL().toString()).
-//                            path("/").
-//                            replaceQuery(request.getQueryString()).build();
-//
-//                    response.setStatus(307);
-//                    response.setHeader("Location", l.toASCIIString());
-//                    return;
-//                } else {
-//                pathInfo = "/";
-//                requestURL.append("/");
-//                requestURI += "/";
-//                }
-//            }
-//        }
+        //        final String pathInfo = request.getPathInfo();
+        //        final boolean checkPathInfo = pathInfo == null || pathInfo.isEmpty() || pathInfo.equals("/");
+        //        if (checkPathInfo && !request.getRequestURI().endsWith("/")) {
+        // Only do this if the last segment of the servlet path does not contain '.'
+        // This handles the case when the extension mapping is used with the servlet
+        // see issue 506
+        // This solution does not require parsing the deployment descriptor,
+        // however still leaves it broken for the very rare case if a standard path
+        // servlet mapping would include dot in the last segment (e.g. /.webresources/*)
+        // and somebody would want to hit the root resource without the trailing slash
+        //            final int i = servletPath.lastIndexOf('/');
+        //            if (servletPath.substring(i + 1).indexOf('.') < 0) {
+        // TODO (+ handle request URL with invalid characters - see the creation of absoluteUriBuilder below)
+        //                if (webComponent.getResourceConfig().getFeature(ResourceConfig.FEATURE_REDIRECT)) {
+        //                    URI l = UriBuilder.fromUri(request.getRequestURL().toString()).
+        //                            path("/").
+        //                            replaceQuery(request.getQueryString()).build();
+        //
+        //                    response.setStatus(307);
+        //                    response.setHeader("Location", l.toASCIIString());
+        //                    return;
+        //                } else {
+        //                pathInfo = "/";
+        //                requestURL.append("/");
+        //                requestURI += "/";
+        //                }
+        //            }
+        //        }
 
         /**
          * The HttpServletRequest.getRequestURL() contains the complete URI
@@ -323,9 +323,9 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
                 queryParameters = "";
             }
 
-            requestUri = absoluteUriBuilder.replacePath(requestURI).
-                    replaceQuery(queryParameters).
-                    build();
+            requestUri = absoluteUriBuilder.replacePath(requestURI)
+                    .replaceQuery(queryParameters)
+                    .build();
         } catch (final UriBuilderException | IllegalArgumentException ex) {
             setResponseForInvalidUri(response, ex);
             return;
@@ -373,7 +373,8 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
      * @param response   the {@link javax.servlet.http.HttpServletResponse} object that
      *                   contains the response the Web component returns
      *                   to the client.
-     * @return lazily initialized response status code {@link Value value provider}.
+     * @return lazily initialized response status code {@link Value value provider}. If not resolved in the moment of call to
+     * {@link Value#get()}, {@code -1} is returned.
      * @throws IOException      if an input or output error occurs
      *                          while the Web component is handling the
      *                          HTTP request.
@@ -392,7 +393,7 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
         init(new WebFilterConfig(filterConfig));
 
         final String regex = (String) getConfiguration().getProperty(ServletProperties.FILTER_STATIC_CONTENT_REGEX);
-        if (regex != null && regex.length() > 0) {
+        if (regex != null && !regex.isEmpty()) {
             try {
                 staticContentPattern = Pattern.compile(regex);
             } catch (final PatternSyntaxException ex) {
@@ -417,7 +418,9 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
     }
 
     @Override
-    public void doFilter(final ServletRequest servletRequest, final ServletResponse servletResponse, final FilterChain filterChain)
+    public void doFilter(final ServletRequest servletRequest,
+                         final ServletResponse servletResponse,
+                         final FilterChain filterChain)
             throws IOException, ServletException {
         try {
             doFilter((HttpServletRequest) servletRequest, (HttpServletResponse) servletResponse, filterChain);
@@ -490,7 +493,8 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
     }
 
     private void doFilter(final HttpServletRequest request, final HttpServletResponse response, final FilterChain chain,
-                          final String requestURI, final String servletPath, final String queryString) throws IOException, ServletException {
+                          final String requestURI, final String servletPath, final String queryString)
+            throws IOException, ServletException {
         // if we match the static content regular expression lets delegate to
         // the filter chain to use the default container servlets & handlers
         final Pattern p = getStaticContentPattern();
@@ -503,19 +507,19 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
             if (!servletPath.startsWith(filterContextPath)) {
                 throw new ContainerException(LocalizationMessages.SERVLET_PATH_MISMATCH(servletPath, filterContextPath));
                 //TODO:
-//            } else if (servletPath.length() == filterContextPath.length()) {
-//                // Path does not end in a slash, may need to redirect
-//                if (webComponent.getResourceConfig().getFeature(ResourceConfig.FEATURE_REDIRECT)) {
-//                    URI l = UriBuilder.fromUri(request.getRequestURL().toString()).
-//                            path("/").
-//                            replaceQuery(queryString).build();
-//
-//                    response.setStatus(307);
-//                    response.setHeader("Location", l.toASCIIString());
-//                    return;
-//                } else {
-//                    requestURI += "/";
-//                }
+                //            } else if (servletPath.length() == filterContextPath.length()) {
+                //                // Path does not end in a slash, may need to redirect
+                //                if (webComponent.getResourceConfig().getFeature(ResourceConfig.FEATURE_REDIRECT)) {
+                //                    URI l = UriBuilder.fromUri(request.getRequestURL().toString()).
+                //                            path("/").
+                //                            replaceQuery(queryString).build();
+                //
+                //                    response.setStatus(307);
+                //                    response.setHeader("Location", l.toASCIIString());
+                //                    return;
+                //                } else {
+                //                    requestURI += "/";
+                //                }
             }
         }
 
@@ -529,9 +533,9 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
                     .path("/")
                     .build()
                     : absoluteUriBuilder.replacePath(request.getContextPath())
-                    .path(filterContextPath)
-                    .path("/")
-                    .build();
+                            .path(filterContextPath)
+                            .path("/")
+                            .build();
 
             requestUri = absoluteUriBuilder.replacePath(requestURI)
                     .replaceQuery(ContainerUtils.encodeUnsafeCharacters(queryString))
@@ -541,11 +545,19 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
             return;
         }
 
-        final int status = service(baseUri, requestUri, request, response).get();
+        final Value<Integer> statusValue = service(baseUri, requestUri, request, response);
 
         // If forwarding is configured and response is a 404 with no entity
         // body then call the next filter in the chain
-        if (webComponent.forwardOn404 && status == 404 && !response.isCommitted()) {
+
+        if (webComponent.forwardOn404
+                && !response.isCommitted()
+                // TODO when switched to servlet-api-3.0 and higher, use response.getStatus() to retrieve the status
+                // statusValue.get() forwards the call to
+                // org.glassfish.jersey.servlet.internal.ResponseWriter#getResponseContext() which may block the thread.
+                // As a consequence, we must call it only if we're sure it will not block.
+                // See Jersey2730ITCase and Jersey2812ITCase tests.
+                && statusValue.get() == Response.Status.NOT_FOUND.getStatusCode()) {
             // lets clear the response to OK before we forward to the next in the chain
             // as OK is the default set by servlet containers before filters/servlets do any wor
             // so lets hide our footsteps and pretend we were never in the chain at all and let the
@@ -585,8 +597,9 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
     public void reload(final ResourceConfig configuration) {
         try {
             containerListener.onShutdown(this);
+
             webComponent = new WebComponent(webComponent.webConfig, configuration);
-            containerListener = ConfigHelper.getContainerLifecycleListener(webComponent.appHandler);
+            containerListener = webComponent.appHandler;
             containerListener.onReload(this);
             containerListener.onStartup(this);
         } catch (final ServletException ex) {
@@ -604,6 +617,7 @@ public class ServletContainer extends HttpServlet implements Filter, Container {
      *
      * @return The web component.
      */
+    @SuppressWarnings("UnusedDeclaration")
     public WebComponent getWebComponent() {
         return webComponent;
     }

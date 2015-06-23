@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -44,6 +44,7 @@ import java.lang.annotation.ElementType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -68,6 +69,7 @@ import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
 import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.moxy.json.MoxyJsonConfig;
 import org.glassfish.jersey.moxy.xml.MoxyXmlFeature;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
@@ -75,6 +77,8 @@ import org.glassfish.jersey.server.validation.ValidationConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;
 
+import org.eclipse.persistence.jaxb.BeanValidationMode;
+import org.eclipse.persistence.jaxb.MarshallerProperties;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -97,7 +101,7 @@ public class CustomConfigValidationTest extends JerseyTest {
         @NotNull
         @Valid
         public CustomBean post(@PathParam("path") final String path, final CustomBean beanParameter,
-                               @Size(min = 5) @HeaderParam("myHeader") String header) {
+                               @Size(min = 5) @HeaderParam("myHeader") final String header) {
             if ("".equals(path)) {
                 beanParameter.setPath(null);
                 beanParameter.setValidate(false);
@@ -116,7 +120,8 @@ public class CustomConfigValidationTest extends JerseyTest {
 
         final ResourceConfig resourceConfig = new ResourceConfig(CustomConfigResource.class);
 
-        resourceConfig.register(MoxyXmlFeature.class);
+        // Turn off BV in MOXy otherwise the entities on server would be validated at incorrect times.
+        resourceConfig.register(moxyXmlFeature());
         resourceConfig.register(ValidationConfigurationContextResolver.class);
 
         resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
@@ -127,16 +132,27 @@ public class CustomConfigValidationTest extends JerseyTest {
     @Override
     protected void configureClient(final ClientConfig config) {
         super.configureClient(config);
-        config.register(MoxyXmlFeature.class);
+
+        // Turn off BV in MOXy otherwise the entities on client would be validated as well.
+        config.register(moxyXmlFeature());
+    }
+
+    private MoxyXmlFeature moxyXmlFeature() {
+        return new MoxyXmlFeature(new HashMap<String, Object>() {{
+                    put(MarshallerProperties.BEAN_VALIDATION_MODE, BeanValidationMode.NONE);
+                }},
+                Thread.currentThread().getContextClassLoader(),
+                false
+        );
     }
 
     @Test
     public void testPositive() throws Exception {
-        final Response response = target("customconfigvalidation").
-                path("ok").
-                request().
-                header("myHeader", "12345").
-                post(Entity.entity(new CustomBean(), MediaType.APPLICATION_XML_TYPE));
+        final Response response = target("customconfigvalidation")
+                .path("ok")
+                .request()
+                .header("myHeader", "12345")
+                .post(Entity.entity(new CustomBean(), MediaType.APPLICATION_XML_TYPE));
 
         assertEquals(200, response.getStatus());
         assertEquals("ok", response.readEntity(CustomBean.class).getPath());
@@ -144,11 +160,11 @@ public class CustomConfigValidationTest extends JerseyTest {
 
     @Test
     public void testParameterNameWithInterpolator() throws Exception {
-        final Response response = target("customconfigvalidation").
-                path("ok").
-                request().
-                header("myHeader", "1234").
-                post(Entity.entity(new CustomBean(), MediaType.APPLICATION_XML_TYPE));
+        final Response response = target("customconfigvalidation")
+                .path("ok")
+                .request()
+                .header("myHeader", "1234")
+                .post(Entity.entity(new CustomBean(), MediaType.APPLICATION_XML_TYPE));
 
         assertEquals(400, response.getStatus());
 
@@ -162,10 +178,10 @@ public class CustomConfigValidationTest extends JerseyTest {
 
     @Test
     public void testTraversableResolver() throws Exception {
-        final Response response = target("customconfigvalidation/").
-                request().
-                header("myHeader", "12345").
-                post(Entity.entity(new CustomBean(), MediaType.APPLICATION_XML_TYPE));
+        final Response response = target("customconfigvalidation/")
+                .request()
+                .header("myHeader", "12345")
+                .post(Entity.entity(new CustomBean(), MediaType.APPLICATION_XML_TYPE));
 
         assertEquals(200, response.getStatus());
         // return value passed validation because of "corrupted" traversableresolver
@@ -225,7 +241,7 @@ public class CustomConfigValidationTest extends JerseyTest {
                 if (method.equals(post)) {
                     return Arrays.asList("path", "beanParameter", "header");
                 }
-            } catch (NoSuchMethodException e) {
+            } catch (final NoSuchMethodException e) {
                 // Do nothing.
             }
             return nameProvider.getParameterNames(method);

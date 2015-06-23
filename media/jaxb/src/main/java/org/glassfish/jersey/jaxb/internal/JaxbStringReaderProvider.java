@@ -76,7 +76,7 @@ import org.xml.sax.InputSource;
  */
 public class JaxbStringReaderProvider {
 
-    private static final Map<Class, JAXBContext> jaxbContexts = new WeakHashMap<>();
+    private static final Map<Class, JAXBContext> jaxbContexts = new WeakHashMap<Class, JAXBContext>();
     private final Value<ContextResolver<JAXBContext>> mtContext;
     private final Value<ContextResolver<Unmarshaller>> mtUnmarshaller;
 
@@ -154,7 +154,7 @@ public class JaxbStringReaderProvider {
      */
     public static class RootElementProvider extends JaxbStringReaderProvider implements ParamConverterProvider {
 
-        private Provider<SAXParserFactory> spfProvider;
+        private final Provider<SAXParserFactory> spfProvider;
 
         /**
          * Creates new instance.

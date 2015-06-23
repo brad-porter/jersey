@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -59,10 +59,11 @@ import org.glassfish.jersey.internal.LocalizationMessages;
  * @author Marek Potociar (marek.potociar at oracle.com)
  */
 public final class ByteBufferInputStream extends NonBlockingInputStream {
+
     /**
      * Constant buffer indicating EOF.
      */
-    private static final ByteBuffer EOF = ByteBuffer.wrap(new byte[]{});
+    private static final ByteBuffer EOF = ByteBuffer.wrap(new byte[] {});
 
     /**
      * Read-side EOF flag. Does not have to be volatile, it is transient and only accessed from the reader thread.
@@ -123,7 +124,7 @@ public final class ByteBufferInputStream extends NonBlockingInputStream {
     }
 
     private void checkThrowable() throws IOException {
-        Object o = queueStatus.get();
+        final Object o = queueStatus.get();
         if (o != null && o != EOF) { // should be faster than instanceof
             // if not null or EOF, then it must be Throwable
             if (queueStatus.compareAndSet(o, EOF)) {
@@ -148,7 +149,7 @@ public final class ByteBufferInputStream extends NonBlockingInputStream {
         if (current != null && current.hasRemaining()) {
             available = current.remaining();
         }
-        for (ByteBuffer buffer : buffers) {
+        for (final ByteBuffer buffer : buffers) {
             if (buffer == EOF) {
                 break;
             }
@@ -161,99 +162,26 @@ public final class ByteBufferInputStream extends NonBlockingInputStream {
 
     @Override
     public int read() throws IOException {
-        if (eof) {
-            checkThrowable();
-            checkNotClosed();
-            return -1;
-        }
-
-        final int c;
-        if (current != null && current.hasRemaining()) {
-            c = current.get();
-        } else {
-            try {
-                // let's block until next non-empty chunk or EOF
-                c = fetchChunk(true) ? current.get() : -1;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException(e);
-            }
-        }
-
-        checkThrowable();
-        checkNotClosed();
-        return c;
+        return tryRead(true);
     }
 
     @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        return tryRead(b, off, len, true);
+    }
+
     public int tryRead() throws IOException {
-        checkThrowable();
-        checkNotClosed();
-
-        if (eof) {
-            return -1;
-        }
-
-        if (current != null && current.hasRemaining()) {
-            return current.get();
-        }
-
-        try {
-            // try to fetch, but don't block && check if something has been fetched
-            if (fetchChunk(false) && current != null) {
-                return current.get();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        return (eof) ? -1 : NOTHING;
+        return tryRead(false);
     }
 
     @Override
-    public int tryRead(byte b[]) throws IOException {
+    public int tryRead(final byte[] b) throws IOException {
         return tryRead(b, 0, b.length);
     }
 
     @Override
-    public int tryRead(byte b[], int off, int len) throws IOException {
-        checkThrowable();
-        checkNotClosed();
-
-        if (b == null) {
-            throw new NullPointerException();
-        } else if (off < 0 || len < 0 || len > b.length - off) {
-            throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
-            return 0;
-        }
-
-        if (eof) {
-            return -1;
-        }
-
-
-        int i = 0;
-        while (i < len) {
-            if (current != null && current.hasRemaining()) {
-                final int available = current.remaining();
-                if (available < len - i) {
-                    current.get(b, off + i, available);
-                    i += available;
-                } else {
-                    current.get(b, off + i, len - i);
-                    return len;
-                }
-            } else try {
-                if (!fetchChunk(false) || current == null) {
-                    break;  // eof or no data
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        return i;
+    public int tryRead(final byte[] b, final int off, final int len) throws IOException {
+        return tryRead(b, off, len, false);
     }
 
     @Override
@@ -283,7 +211,7 @@ public final class ByteBufferInputStream extends NonBlockingInputStream {
      *         {@code false} if the read queue has been closed.
      * @throws InterruptedException in case the put operation has been interrupted.
      */
-    public boolean put(ByteBuffer src) throws InterruptedException {
+    public boolean put(final ByteBuffer src) throws InterruptedException {
         if (queueStatus.get() == null) {
             buffers.put(src);
             return true;
@@ -303,7 +231,7 @@ public final class ByteBufferInputStream extends NonBlockingInputStream {
         if (queueStatus.compareAndSet(null, EOF)) {
             try {
                 buffers.put(EOF);
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
@@ -324,13 +252,86 @@ public final class ByteBufferInputStream extends NonBlockingInputStream {
      * @param throwable throwable that is set in the stream. It will be thrown by the stream in case
      *                  an attempt to read more data or check available bytes is made.
      */
-    public void closeQueue(Throwable throwable) {
+    public void closeQueue(final Throwable throwable) {
         if (queueStatus.compareAndSet(null, throwable)) {
             try {
                 buffers.put(EOF);
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private int tryRead(final byte[] b, final int off, final int len, boolean block) throws IOException {
+        checkThrowable();
+        checkNotClosed();
+
+        if (b == null) {
+            throw new NullPointerException();
+        } else if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+        } else if (len == 0) {
+            return 0;
+        }
+
+        if (eof) {
+            return -1;
+        }
+
+        int i = 0;
+        while (i < len) {
+            if (current != null && current.hasRemaining()) {
+                final int available = current.remaining();
+                if (available < len - i) {
+                    current.get(b, off + i, available);
+                    i += available;
+                } else {
+                    current.get(b, off + i, len - i);
+                    return len;
+                }
+            } else {
+                try {
+                    if (!fetchChunk(block) || current == null) {
+                        break;  // eof or no data
+                    }
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    if (block) {
+                        throw new IOException(e);
+                    }
+                }
+            }
+        }
+
+        return i == 0 && eof ? -1 : i;
+    }
+
+    private int tryRead(boolean block) throws IOException {
+        checkThrowable();
+        checkNotClosed();
+
+        if (eof) {
+            return -1;
+        }
+
+        if (current != null && current.hasRemaining()) {
+            return current.get() & 0xFF;
+        }
+
+        try {
+            // try to fetch, but don't block && check if something has been fetched
+            if (fetchChunk(block) && current != null) {
+                return current.get() & 0xFF;
+            } else if (block) {
+                return -1;
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            if (block) {
+                throw new IOException(e);
+            }
+        }
+
+        return (eof) ? -1 : NOTHING;
     }
 }

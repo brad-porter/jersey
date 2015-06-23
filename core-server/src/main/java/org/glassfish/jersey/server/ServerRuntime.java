@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -73,6 +74,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.glassfish.jersey.internal.inject.Injections;
 import org.glassfish.jersey.internal.inject.Providers;
@@ -87,11 +89,9 @@ import org.glassfish.jersey.message.internal.MessageBodyProviderNotFoundExceptio
 import org.glassfish.jersey.message.internal.OutboundJaxrsResponse;
 import org.glassfish.jersey.message.internal.OutboundMessageContext;
 import org.glassfish.jersey.message.internal.TracingLogger;
-import org.glassfish.jersey.process.internal.RequestExecutorFactory;
 import org.glassfish.jersey.process.internal.RequestScope;
 import org.glassfish.jersey.process.internal.Stage;
 import org.glassfish.jersey.process.internal.Stages;
-import org.glassfish.jersey.server.internal.BackgroundScheduler;
 import org.glassfish.jersey.server.internal.LocalizationMessages;
 import org.glassfish.jersey.server.internal.ProcessingProviders;
 import org.glassfish.jersey.server.internal.ServerTraceEvent;
@@ -134,10 +134,10 @@ public class ServerRuntime {
     private final ServiceLocator locator;
 
     private final ScheduledExecutorService backgroundScheduler;
+    private final Provider<ExecutorService> managedAsyncExecutor;
 
     private final RequestScope requestScope;
     private final ExceptionMappers exceptionMappers;
-    private final RequestExecutorFactory asyncExecutorFactory;
     private final ApplicationEventListener applicationEventListener;
     private final Configuration configuration;
 
@@ -150,39 +150,41 @@ public class ServerRuntime {
 
     /*package */ static final ExternalRequestScope<Object> NOOP_EXTERNAL_REQ_SCOPE = new ExternalRequestScope<Object>() {
 
-            @Override
-            public ExternalRequestContext<Object> open() {
-                return null;
-            }
+        @Override
+        public ExternalRequestContext<Object> open() {
+            return null;
+        }
 
-            @Override
-            public void close() {
-            }
+        @Override
+        public void close() {
+        }
 
-            @Override
-            public void suspend(ExternalRequestContext<Object> o) {
-            }
+        @Override
+        public void suspend(ExternalRequestContext<Object> o) {
+        }
 
-            @Override
-            public void resume(ExternalRequestContext<Object> o) {
-            }
-        };
+        @Override
+        public void resume(ExternalRequestContext<Object> o) {
+        }
+    };
 
     /**
      * Server-side request processing runtime builder.
      */
     public static class Builder {
+
         @Inject
         private ServiceLocator locator;
         @Inject
         @BackgroundScheduler
         private ScheduledExecutorService backgroundScheduler;
         @Inject
+        @ManagedAsyncExecutor
+        private Provider<ExecutorService> asyncExecutorProvider;
+        @Inject
         private RequestScope requestScope;
         @Inject
         private ExceptionMappers exceptionMappers;
-        @Inject
-        private RequestExecutorFactory asyncExecutorFactory;
         @Inject
         private Configuration configuration;
         @Inject
@@ -201,16 +203,17 @@ public class ServerRuntime {
                 final ApplicationEventListener eventListener,
                 final ProcessingProviders processingProviders) {
 
-            final ExternalRequestScope externalScope = externalRequestScope != null ? externalRequestScope : NOOP_EXTERNAL_REQ_SCOPE;
+            final ExternalRequestScope externalScope =
+                    externalRequestScope != null ? externalRequestScope : NOOP_EXTERNAL_REQ_SCOPE;
 
             return new ServerRuntime(
                     processingRoot,
                     processingProviders,
                     locator,
                     backgroundScheduler,
+                    asyncExecutorProvider,
                     requestScope,
                     exceptionMappers,
-                    asyncExecutorFactory,
                     eventListener,
                     externalScope,
                     configuration);
@@ -221,19 +224,21 @@ public class ServerRuntime {
                           final ProcessingProviders processingProviders,
                           final ServiceLocator locator,
                           final ScheduledExecutorService backgroundScheduler,
+                          final Provider<ExecutorService> managedAsyncExecutorProvider,
                           final RequestScope requestScope,
                           final ExceptionMappers exceptionMappers,
-                          final RequestExecutorFactory asyncExecutorFactory,
                           final ApplicationEventListener applicationEventListener,
                           final ExternalRequestScope externalScope,
                           final Configuration configuration) {
         this.requestProcessingRoot = requestProcessingRoot;
         this.processingProviders = processingProviders;
         this.locator = locator;
+
         this.backgroundScheduler = backgroundScheduler;
+        this.managedAsyncExecutor = managedAsyncExecutorProvider;
+
         this.requestScope = requestScope;
         this.exceptionMappers = exceptionMappers;
-        this.asyncExecutorFactory = asyncExecutorFactory;
         this.applicationEventListener = applicationEventListener;
         this.externalRequestScope = externalScope;
         this.configuration = configuration;
@@ -348,6 +353,7 @@ public class ServerRuntime {
     }
 
     private static class AsyncResponderHolder implements Value<AsyncContext> {
+
         private final Responder responder;
         private final ExternalRequestScope externalScope;
         private final RequestScope.Instance scopeInstance;
@@ -356,9 +362,9 @@ public class ServerRuntime {
         private volatile AsyncResponder asyncResponder;
 
         private AsyncResponderHolder(final Responder responder,
-                                        final ExternalRequestScope externalRequestScope,
-                                        final RequestScope.Instance scopeInstance,
-                                        final ExternalRequestContext<?> externalContext) {
+                                     final ExternalRequestScope externalRequestScope,
+                                     final RequestScope.Instance scopeInstance,
+                                     final ExternalRequestContext<?> externalContext) {
             this.responder = responder;
             this.externalScope = externalRequestScope;
             this.scopeInstance = scopeInstance;
@@ -385,6 +391,7 @@ public class ServerRuntime {
     }
 
     private static class Responder {
+
         private static final Logger LOGGER = Logger.getLogger(Responder.class.getName());
 
         private final RequestProcessingContext processingContext;
@@ -394,7 +401,6 @@ public class ServerRuntime {
         private final ConnectionCallbackRunner connectionCallbackRunner = new ConnectionCallbackRunner();
 
         private final TracingLogger tracingLogger;
-
 
         public Responder(final RequestProcessingContext processingContext, final ServerRuntime runtime) {
             this.processingContext = processingContext;
@@ -576,6 +582,16 @@ public class ServerRuntime {
 
                             if (mappedResponse != null) {
                                 // response successfully mapped
+                                if (LOGGER.isLoggable(Level.FINER)) {
+                                    final String message = String.format(
+                                            "Exception '%s' has been mapped by '%s' to response '%s' (%s:%s).",
+                                            throwable.getLocalizedMessage(),
+                                            mapper.getClass().getName(),
+                                            mappedResponse.getStatusInfo().getReasonPhrase(),
+                                            mappedResponse.getStatusInfo().getStatusCode(),
+                                            mappedResponse.getStatusInfo().getFamily());
+                                    LOGGER.log(Level.FINER, message);
+                                }
                                 return mappedResponse;
                             } else {
                                 return Response.noContent().build();
@@ -642,7 +658,6 @@ public class ServerRuntime {
 
             final boolean isHead = request.getMethod().equals(HttpMethod.HEAD);
 
-
             try {
                 response.setStreamProvider(new OutboundMessageContext.StreamProvider() {
                     @Override
@@ -674,10 +689,10 @@ public class ServerRuntime {
                         connectionCallbackRunner.onDisconnect(processingContext.asyncContext());
                     }
                     throw mpe;
-                } finally {
-                    tracingLogger.log(ServerTraceEvent.FINISHED, response.getStatusInfo());
-                    tracingLogger.flush(response.getHeaders());
                 }
+                tracingLogger.log(ServerTraceEvent.FINISHED, response.getStatusInfo());
+                tracingLogger.flush(response.getHeaders());
+
                 setWrittenResponse(response);
 
             } catch (final Throwable ex) {
@@ -771,6 +786,7 @@ public class ServerRuntime {
     }
 
     private static class AsyncResponder implements AsyncContext, ContainerResponseWriter.TimeoutHandler, CompletionCallback {
+
         private static final Logger LOGGER = Logger.getLogger(AsyncResponder.class.getName());
 
         private static final TimeoutHandler DEFAULT_TIMEOUT_HANDLER = new TimeoutHandler() {
@@ -832,7 +848,7 @@ public class ServerRuntime {
 
         @Override
         public void invokeManaged(final Producer<Response> producer) {
-            responder.runtime.asyncExecutorFactory.getExecutor().submit(new Runnable() {
+            responder.runtime.managedAsyncExecutor.get().submit(new Runnable() {
                 @Override
                 public void run() {
                     responder.runtime.requestScope.runInScope(scopeInstance, new Runnable() {
@@ -1095,7 +1111,8 @@ public class ServerRuntime {
      *
      * @param <T> callback type
      */
-    static abstract class AbstractCallbackRunner<T> {
+    abstract static class AbstractCallbackRunner<T> {
+
         private final Queue<T> callbacks = new ConcurrentLinkedQueue<>();
         private final Logger logger;
 

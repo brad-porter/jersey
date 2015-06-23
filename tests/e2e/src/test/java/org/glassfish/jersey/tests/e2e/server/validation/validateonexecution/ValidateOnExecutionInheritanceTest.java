@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -51,12 +51,15 @@ import javax.validation.executable.ValidateOnExecution;
 
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * @author Michal Gajdos (michal.gajdos at oracle.com)
  */
+@RunWith(ConcurrentRunner.class)
 public class ValidateOnExecutionInheritanceTest extends ValidateOnExecutionAbstractTest {
 
     /**
@@ -110,7 +113,7 @@ public class ValidateOnExecutionInheritanceTest extends ValidateOnExecutionAbstr
         Integer validateExecutableNone(final Integer value);
     }
 
-    public static abstract class ValidateExecutableOnMethodsAbstractResource implements ValidateExecutableOnMethodsJaxRs {
+    public abstract static class ValidateExecutableOnMethodsAbstractResource implements ValidateExecutableOnMethodsJaxRs {
 
         @ValidateOnExecution(type = ExecutableType.NONE)
         public abstract Integer validateExecutableDefault(final Integer value);
@@ -165,7 +168,7 @@ public class ValidateOnExecutionInheritanceTest extends ValidateOnExecutionAbstr
      * This {@link ValidateOnExecution} annotation should be considered during validating phase.
      */
     @ValidateOnExecution(type = ExecutableType.GETTER_METHODS)
-    public static abstract class ValidateExecutableOnTypeDefaultAbstractResource implements ValidateExecutableOnTypeDefault {
+    public abstract static class ValidateExecutableOnTypeDefaultAbstractResource implements ValidateExecutableOnTypeDefault {
 
         public Integer validateExecutable(final Integer value) {
             return value;
@@ -185,7 +188,7 @@ public class ValidateOnExecutionInheritanceTest extends ValidateOnExecutionAbstr
     }
 
     @ValidateOnExecution(type = ExecutableType.GETTER_METHODS)
-    public static abstract class ValidateExecutableOnTypeMatchAbstractResource implements ValidateExecutableOnTypeMatch {
+    public abstract static class ValidateExecutableOnTypeMatchAbstractResource implements ValidateExecutableOnTypeMatch {
 
         public Integer validateExecutable(final Integer value) {
             return value;
@@ -205,7 +208,7 @@ public class ValidateOnExecutionInheritanceTest extends ValidateOnExecutionAbstr
     }
 
     @ValidateOnExecution(type = ExecutableType.NON_GETTER_METHODS)
-    public static abstract class ValidateExecutableOnTypeMissAbstractResource implements ValidateExecutableOnTypeMiss {
+    public abstract static class ValidateExecutableOnTypeMissAbstractResource implements ValidateExecutableOnTypeMiss {
 
         public Integer validateExecutable(final Integer value) {
             return value;
@@ -225,7 +228,7 @@ public class ValidateOnExecutionInheritanceTest extends ValidateOnExecutionAbstr
     }
 
     @ValidateOnExecution(type = ExecutableType.ALL)
-    public static abstract class ValidateExecutableOnTypeNoneAbstractResource implements ValidateExecutableOnTypeNone {
+    public abstract static class ValidateExecutableOnTypeNoneAbstractResource implements ValidateExecutableOnTypeNone {
 
         public Integer validateExecutable(final Integer value) {
             return value;

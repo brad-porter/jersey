@@ -51,6 +51,7 @@ import javax.inject.Singleton;
 import org.glassfish.jersey.server.ContainerRequest;
 import org.glassfish.jersey.server.internal.inject.ConfiguredValidator;
 import org.glassfish.jersey.server.model.Invocable;
+import org.glassfish.jersey.server.spi.ValidationInterceptor;
 import org.glassfish.jersey.server.spi.internal.ResourceMethodDispatcher;
 
 /**
@@ -69,7 +70,9 @@ final class VoidVoidDispatcherProvider implements ResourceMethodDispatcher.Provi
 
     private static class VoidToVoidDispatcher extends AbstractJavaResourceMethodDispatcher {
 
-        private VoidToVoidDispatcher(final Invocable resourceMethod, final InvocationHandler handler, final ConfiguredValidator validator) {
+        private VoidToVoidDispatcher(final Invocable resourceMethod,
+                                     final InvocationHandler handler,
+                                     final ConfiguredValidator validator) {
             super(resourceMethod, handler, validator);
         }
 
@@ -81,7 +84,9 @@ final class VoidVoidDispatcherProvider implements ResourceMethodDispatcher.Provi
     }
 
     @Override
-    public ResourceMethodDispatcher create(final Invocable resourceMethod, final InvocationHandler handler, final ConfiguredValidator validator) {
+    public ResourceMethodDispatcher create(final Invocable resourceMethod,
+                                           final InvocationHandler handler,
+                                           final ConfiguredValidator validator) {
         if (resourceMethod.getHandlingMethod().getReturnType() != void.class || !resourceMethod.getParameters().isEmpty()) {
             return null;
         }

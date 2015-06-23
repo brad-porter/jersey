@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -41,14 +41,13 @@ package org.glassfish.jersey.server.internal.scanning;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import org.glassfish.jersey.server.ResourceFinder;
+import org.glassfish.jersey.server.internal.AbstractResourceFinderAdapter;
 
 /**
  * Preparations for OSGi support.
@@ -59,7 +58,7 @@ class BundleSchemeResourceFinderFactory implements UriSchemeResourceFinderFactor
 
     @Override
     public Set<String> getSchemes() {
-        return new HashSet<String>(Arrays.asList("bundle"));
+        return new HashSet<>(Arrays.asList("bundle"));
     }
 
     /**
@@ -73,23 +72,35 @@ class BundleSchemeResourceFinderFactory implements UriSchemeResourceFinderFactor
         return new BundleSchemeScanner(uri);
     }
 
-    private class BundleSchemeScanner implements ResourceFinder {
+    private class BundleSchemeScanner extends AbstractResourceFinderAdapter {
 
         private BundleSchemeScanner(URI uri) {
             this.uri = uri;
         }
 
         private URI uri;
+
+        /**
+         * Marks this iterator as iterated after execution of {@link #open()} method.
+         * Together with {@link #iterated}, this field determines a returned value of {@link #hasNext()}.
+         */
         private boolean accessed = false;
+
+        /**
+         * Marks this iterator as iterated after execution of {@link #next()} method.
+         * Together with {@link #accessed}, this field determines a returned value of {@link #hasNext()}.
+         */
+        private boolean iterated = false;
 
         @Override
         public boolean hasNext() {
-            return !accessed;
+            return !accessed && !iterated;
         }
 
         @Override
         public String next() {
-            if(!accessed) {
+            if (hasNext()) {
+                iterated = true;
                 return uri.getPath();
             }
 
@@ -97,18 +108,11 @@ class BundleSchemeResourceFinderFactory implements UriSchemeResourceFinderFactor
         }
 
         @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public InputStream open() {
-            if(!accessed) {
+            if (!accessed) {
                 try {
                     accessed = true;
                     return uri.toURL().openStream();
-                } catch (MalformedURLException e) {
-                    throw new ResourceFinderException(e);
                 } catch (IOException e) {
                     throw new ResourceFinderException(e);
                 }

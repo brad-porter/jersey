@@ -132,7 +132,6 @@ public class ResourceConfig extends Application implements Configurable<Resource
             this.classLoader = classLoader;
         }
 
-
         public void setApplicationName(final String applicationName) {
             this.applicationName = applicationName;
         }
@@ -150,8 +149,8 @@ public class ResourceConfig extends Application implements Configurable<Resource
             return new Inflector<ContractProvider.Builder, ContractProvider>() {
                 @Override
                 public ContractProvider apply(final ContractProvider.Builder builder) {
-                    if (builder.getScope() == null && builder.getContracts().isEmpty() &&
-                            Resource.getPath(componentClass) != null) {
+                    if (builder.getScope() == null && builder.getContracts().isEmpty()
+                            && Resource.getPath(componentClass) != null) {
                         builder.scope(RequestScoped.class);
                     }
 
@@ -217,6 +216,7 @@ public class ResourceConfig extends Application implements Configurable<Resource
     }
 
     private static final class ImmutableState extends State {
+
         private ImmutableState(final State original) {
             super(original);
         }
@@ -312,8 +312,9 @@ public class ResourceConfig extends Application implements Configurable<Resource
      * @return ResourceConfig instance for the supplied application.
      */
     public static ResourceConfig forApplication(final Application application) {
-        return (application instanceof ResourceConfig) ? ((ResourceConfig) application) : new WrappingResourceConfig
-                (application, null, null);
+        return application instanceof ResourceConfig
+                ? ((ResourceConfig) application)
+                : new WrappingResourceConfig(application, null, null);
     }
 
     /**
@@ -956,7 +957,7 @@ public class ResourceConfig extends Application implements Configurable<Resource
      * Get resource and provider class loader.
      *
      * @return class loader to be used when looking up the resource classes and
-     *         providers.
+     * providers.
      */
     public final ClassLoader getClassLoader() {
         return state.getClassLoader();
@@ -1023,6 +1024,7 @@ public class ResourceConfig extends Application implements Configurable<Resource
     }
 
     private static class WrappingResourceConfig extends ResourceConfig {
+
         private Application application;
         private Class<? extends Application> applicationClass;
         private final Set<Class<?>> defaultClasses = Sets.newHashSet();
@@ -1082,7 +1084,7 @@ public class ResourceConfig extends Application implements Configurable<Resource
          * </p>
          *
          * @return original JAX-RS application class or {@code null} if there is no
-         *         such class configured or if the class has been already instantiated.
+         * such class configured or if the class has been already instantiated.
          */
         @Override
         Class<? extends Application> getApplicationClass() {
@@ -1153,11 +1155,12 @@ public class ResourceConfig extends Application implements Configurable<Resource
      * @return initialized run-time resource config.
      */
     static ResourceConfig createRuntimeConfig(final Application application) {
-        return (application instanceof ResourceConfig) ?
-                new RuntimeConfig((ResourceConfig) application) : new RuntimeConfig(application);
+        return (application instanceof ResourceConfig)
+                ? new RuntimeConfig((ResourceConfig) application) : new RuntimeConfig(application);
     }
 
     private static class RuntimeConfig extends ResourceConfig {
+
         private final Set<Class<?>> originalRegistrations;
         private final Application application;
 
@@ -1260,7 +1263,6 @@ public class ResourceConfig extends Application implements Configurable<Resource
             return originalRegistrations;
         }
 
-
         @Override
         Application _getApplication() {
             return application;
@@ -1272,7 +1274,7 @@ public class ResourceConfig extends Application implements Configurable<Resource
         while (resourceConfig != null) {
             app = resourceConfig.getApplication();
             if (app == resourceConfig) {
-                // resource config is the root app - return null
+                // resource config is the root application - return null
                 return null;
             } else if (app instanceof ResourceConfig) {
                 resourceConfig = (ResourceConfig) app;
@@ -1281,6 +1283,29 @@ public class ResourceConfig extends Application implements Configurable<Resource
             }
         }
         return app;
+    }
+
+    /**
+     * Get the most internal wrapped {@link Application application} class.
+     * <p>
+     * This method is similar to {@link ResourceConfig#getApplication()} except if provided application was
+     * created by wrapping multiple {@code ResourceConfig} instances, this method will return the original (inner-most)
+     * JAX-RS {@code Application} sub-class rather than a potentially intermediate {@code ResourceConfig} wrapper.
+     * </p>
+     *
+     * @param application application that is potentially wrapped.
+     * @return the original, inner-most {@link Application} subclass. May return the same instance directly,
+     * in case the supplied {@code application} instance is not a wrapper {@code ResourceConfig} instance.
+     */
+    static Application unwrapApplication(Application application) {
+        while (application instanceof ResourceConfig) {
+            final Application wrappedApplication = ((ResourceConfig) application).getApplication();
+            if (wrappedApplication == application) {
+                break;
+            }
+            application = wrappedApplication;
+        }
+        return application;
     }
 
     private void setupApplicationName() {

@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2010-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2010-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -76,8 +76,9 @@ final class ELLinkBuilder {
                                      Object resource,
                                      Object instance) {
 
-        if (condition == null || condition.isEmpty())
+        if (condition == null || condition.isEmpty()) {
             return true;
+        }
         LinkELContext context = new LinkELContext(entity, resource, instance);
         ValueExpression expr = expressionFactory.createValueExpression(context, condition, boolean.class);
 
@@ -107,7 +108,7 @@ final class ELLinkBuilder {
         UriBuilder ub = applyLinkStyle(template, link.getLinkStyle(), uriInfo);
         UriTemplateParser parser = new UriTemplateParser(template);
         List<String> parameterNames = parser.getNames();
-        Map<String, Object> valueMap = getParameterValues(parameterNames, link, context);
+        Map<String, Object> valueMap = getParameterValues(parameterNames, link, context, uriInfo);
         return ub.buildFromMap(valueMap);
     }
 
@@ -128,24 +129,31 @@ final class ELLinkBuilder {
         return ub;
     }
 
-    private static Map<String, Object> getParameterValues(List<String> parameterNames, InjectLinkDescriptor linkField, LinkELContext context) {
+    private static Map<String, Object> getParameterValues(List<String> parameterNames,
+                                                          InjectLinkDescriptor linkField,
+                                                          LinkELContext context,
+                                                          UriInfo uriInfo) {
         Map<String, Object> values = new HashMap<>();
         for (String name : parameterNames) {
-            String elExpression = getEL(name, linkField);
+            String elExpression = linkField.getBinding(name);
+            if (elExpression == null) {
+                String value = uriInfo.getPathParameters().getFirst(name);
+                if (value == null) {
+                    value = uriInfo.getQueryParameters().getFirst(name);
+                }
+                if (value != null) {
+                    values.put(name, value);
+                    continue;
+                }
+                elExpression = "${" + ResponseContextResolver.INSTANCE_OBJECT + "." + name + "}";
+            }
             ValueExpression expr = expressionFactory.createValueExpression(context,
-                    elExpression, String.class);
+                        elExpression, String.class);
 
             Object value = expr.getValue(context);
             values.put(name, value != null ? value.toString() : null);
-        }
+         }
         return values;
     }
 
-    private static String getEL(String name, InjectLinkDescriptor linkField) {
-        String binding = linkField.getBinding(name);
-        if (binding != null) {
-            return binding;
-        }
-        return "${" + ResponseContextResolver.INSTANCE_OBJECT + "." + name + "}";
-    }
 }

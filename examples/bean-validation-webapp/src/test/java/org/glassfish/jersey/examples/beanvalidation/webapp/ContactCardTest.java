@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2012-2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012-2015 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -55,6 +55,7 @@ import javax.ws.rs.core.UriBuilder;
 
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.examples.beanvalidation.webapp.domain.ContactCard;
+import org.glassfish.jersey.moxy.json.MoxyJsonConfig;
 import org.glassfish.jersey.moxy.json.MoxyJsonFeature;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.server.validation.ValidationError;
@@ -62,6 +63,8 @@ import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;
 import org.glassfish.jersey.test.external.ExternalTestContainerFactory;
 
+import org.eclipse.persistence.jaxb.BeanValidationMode;
+import org.eclipse.persistence.jaxb.MarshallerProperties;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -72,8 +75,8 @@ import static org.junit.Assert.assertTrue;
  */
 public class ContactCardTest extends JerseyTest {
 
-    private final static ContactCard CARD_1;
-    private final static ContactCard CARD_2;
+    private static final ContactCard CARD_1;
+    private static final ContactCard CARD_2;
 
     static {
         CARD_1 = new ContactCard();
@@ -90,9 +93,7 @@ public class ContactCardTest extends JerseyTest {
         enable(TestProperties.LOG_TRAFFIC);
         enable(TestProperties.DUMP_ENTITY);
 
-        final MyApplication application = new MyApplication();
-        application.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
-        return application;
+        return new MyApplication().property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
     }
 
     @Override
@@ -100,6 +101,10 @@ public class ContactCardTest extends JerseyTest {
         super.configureClient(config);
 
         config.register(MoxyJsonFeature.class);
+        // Turn off BV otherwise the entities on client would be validated as well.
+        config.register(new MoxyJsonConfig()
+                .property(MarshallerProperties.BEAN_VALIDATION_MODE, BeanValidationMode.NONE)
+                .resolver());
     }
 
     @Override
@@ -111,20 +116,18 @@ public class ContactCardTest extends JerseyTest {
 
     @Test
     public void testAddContact() throws Exception {
-        final WebTarget target = target().
-                path("contact");
-        final Response response = target.
-                request(MediaType.APPLICATION_JSON_TYPE).
-                post(Entity.entity(CARD_1, MediaType.APPLICATION_JSON_TYPE));
+        final WebTarget target = target()
+                .path("contact");
+        final Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
+                .post(Entity.entity(CARD_1, MediaType.APPLICATION_JSON_TYPE));
 
         final ContactCard contactCard = response.readEntity(ContactCard.class);
 
         assertEquals(200, response.getStatus());
         assertNotNull(contactCard.getId());
 
-        final Response invalidResponse = target.
-                request(MediaType.APPLICATION_JSON_TYPE).
-                post(Entity.entity(CARD_1, MediaType.APPLICATION_JSON_TYPE));
+        final Response invalidResponse = target.request(MediaType.APPLICATION_JSON_TYPE)
+                .post(Entity.entity(CARD_1, MediaType.APPLICATION_JSON_TYPE));
         assertEquals(500, invalidResponse.getStatus());
         assertTrue(getValidationMessageTemplates(invalidResponse).contains("{contact.already.exist}"));
 
@@ -133,8 +136,8 @@ public class ContactCardTest extends JerseyTest {
 
     @Test
     public void testContactDoesNotExist() throws Exception {
-        final WebTarget target = target().
-                path("contact");
+        final WebTarget target = target()
+                .path("contact");
 
         // GET
         Response response = target.path("1").request(MediaType.APPLICATION_JSON_TYPE).get();
@@ -157,8 +160,8 @@ public class ContactCardTest extends JerseyTest {
 
     @Test
     public void testContactWrongId() throws Exception {
-        final WebTarget target = target().
-                path("contact");
+        final WebTarget target = target()
+                .path("contact");
 
         // GET
         Response response = target.path("-1").request(MediaType.APPLICATION_JSON_TYPE).get();
@@ -188,7 +191,7 @@ public class ContactCardTest extends JerseyTest {
     }
 
     private Set<String> getValidationMessageTemplates(final List<ValidationError> errors) {
-        final Set<String> templates = new HashSet<String>();
+        final Set<String> templates = new HashSet<>();
         for (final ValidationError error : errors) {
             templates.add(error.getMessageTemplate());
         }
@@ -200,10 +203,10 @@ public class ContactCardTest extends JerseyTest {
         final ContactCard entity = new ContactCard();
         entity.setPhone("Crrrn");
 
-        final Response response = target().
-                path("contact").
-                request(MediaType.APPLICATION_JSON_TYPE).
-                post(Entity.entity(entity, MediaType.APPLICATION_JSON_TYPE));
+        final Response response = target()
+                .path("contact")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .post(Entity.entity(entity, MediaType.APPLICATION_JSON_TYPE));
 
         assertEquals(400, response.getStatus());
 
@@ -220,28 +223,29 @@ public class ContactCardTest extends JerseyTest {
 
     @Test
     public void testSearchByUnknown() throws Exception {
-        final Response response = target().
-                path("contact").
-                path("search/unknown").
-                queryParam("q", "er").
-                request(MediaType.APPLICATION_JSON_TYPE).
-                get();
+        final Response response = target()
+                .path("contact")
+                .path("search/unknown")
+                .queryParam("q", "er")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .get();
 
         assertEquals(400, response.getStatus());
 
         final Set<String> messageTemplates = getValidationMessageTemplates(response);
         assertEquals(1, messageTemplates.size());
-        assertTrue(messageTemplates.contains("{org.glassfish.jersey.examples.beanvalidation.webapp.constraint.SearchType.message}"));
+        assertTrue(
+                messageTemplates.contains("{org.glassfish.jersey.examples.beanvalidation.webapp.constraint.SearchType.message}"));
     }
 
     @Test
     public void testSearchByEmailEmpty() throws Exception {
-        final Response response = target().
-                path("contact").
-                path("search/email").
-                queryParam("q", "er").
-                request(MediaType.APPLICATION_JSON_TYPE).
-                get();
+        final Response response = target()
+                .path("contact")
+                .path("search/email")
+                .queryParam("q", "er")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .get();
 
         assertEquals(200, response.getStatus());
 
@@ -251,12 +255,12 @@ public class ContactCardTest extends JerseyTest {
 
     @Test
     public void testSearchByPhoneInvalid() throws Exception {
-        final Response response = target().
-                path("contact").
-                path("search/phone").
-                queryParam("q", (String) null).
-                request(MediaType.APPLICATION_JSON_TYPE).
-                get();
+        final Response response = target()
+                .path("contact")
+                .path("search/phone")
+                .queryParam("q", (String) null)
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .get();
 
         assertEquals(400, response.getStatus());
 
@@ -271,11 +275,10 @@ public class ContactCardTest extends JerseyTest {
         target.request(MediaType.APPLICATION_JSON_TYPE).post(Entity.entity(CARD_1, MediaType.APPLICATION_JSON_TYPE));
         target.request(MediaType.APPLICATION_JSON_TYPE).post(Entity.entity(CARD_2, MediaType.APPLICATION_JSON_TYPE));
 
-        Response response = target.
-                path("search/name").
-                queryParam("q", "er").
-                request(MediaType.APPLICATION_JSON_TYPE).
-                get();
+        Response response = target.path("search/name")
+                .queryParam("q", "er")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .get();
 
         List<ContactCard> contactCards = response.readEntity(new GenericType<List<ContactCard>>() {});
 
@@ -286,11 +289,10 @@ public class ContactCardTest extends JerseyTest {
             assertTrue(contactCard.getFullName().contains("er"));
         }
 
-        response = target.
-                path("search/name").
-                queryParam("q", "Foo").
-                request(MediaType.APPLICATION_JSON_TYPE).
-                get();
+        response = target.path("search/name")
+                .queryParam("q", "Foo")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .get();
 
         contactCards = response.readEntity(new GenericType<List<ContactCard>>() {});
 

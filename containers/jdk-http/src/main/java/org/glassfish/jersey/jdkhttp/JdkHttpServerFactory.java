@@ -45,13 +45,16 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.logging.Logger;
 
 import javax.ws.rs.ProcessingException;
+
+import javax.net.ssl.SSLContext;
 
 import org.glassfish.jersey.jdkhttp.internal.LocalizationMessages;
 import org.glassfish.jersey.process.JerseyProcessingUncaughtExceptionHandler;
 import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.server.internal.ConfigHelper;
+import org.glassfish.jersey.server.spi.Container;
 
 import org.glassfish.hk2.api.ServiceLocator;
 
@@ -71,6 +74,8 @@ import jersey.repackaged.com.google.common.util.concurrent.ThreadFactoryBuilder;
  */
 public final class JdkHttpServerFactory {
 
+    private static final Logger LOG = Logger.getLogger(JdkHttpServerFactory.class.getName());
+
     /**
      * Create and start the {@link HttpServer JDK HttpServer} with the Jersey application deployed
      * at the given {@link URI}.
@@ -81,7 +86,6 @@ public final class JdkHttpServerFactory {
      * @param uri           the {@link URI uri} on which the Jersey application will be deployed.
      * @param configuration the Jersey server-side application configuration.
      * @return Newly created {@link HttpServer}.
-     *
      * @throws ProcessingException thrown when problems during server creation
      *                             occurs.
      */
@@ -100,7 +104,6 @@ public final class JdkHttpServerFactory {
      * @param configuration the Jersey server-side application configuration.
      * @param start         if set to {@code false}, the created server will not be automatically started.
      * @return Newly created {@link HttpServer}.
-     *
      * @throws ProcessingException thrown when problems during server creation occurs.
      * @since 2.8
      */
@@ -118,7 +121,6 @@ public final class JdkHttpServerFactory {
      * @param parentLocator {@link org.glassfish.hk2.api.ServiceLocator} to become a parent of the locator used by
      *                      {@link org.glassfish.jersey.server.ApplicationHandler}
      * @return Newly created {@link HttpServer}.
-     *
      * @throws ProcessingException thrown when problems during server creation occurs.
      * @see org.glassfish.jersey.jdkhttp.JdkHttpHandlerContainer
      * @see org.glassfish.hk2.api.ServiceLocator
@@ -129,15 +131,112 @@ public final class JdkHttpServerFactory {
         return createHttpServer(uri, new JdkHttpHandlerContainer(configuration, parentLocator), true);
     }
 
-    private static HttpServer createHttpServer(final URI uri, final JdkHttpHandlerContainer handler, final boolean start) {
+    /**
+     * Create and start the {@link HttpServer JDK HttpServer}, eventually {@code HttpServer}'s subclass
+     * {@link HttpsServer JDK HttpsServer} with the JAX-RS / Jersey application deployed on the given {@link URI}.
+     * <p>
+     * The returned {@link HttpServer JDK HttpServer} is started.
+     * </p>
+     *
+     * @param uri           the {@link URI uri} on which the Jersey application will be deployed.
+     * @param configuration the Jersey server-side application configuration.
+     * @param sslContext    custom {@link SSLContext} to be passed to the server
+     * @return Newly created {@link HttpServer}.
+     * @throws ProcessingException thrown when problems during server creation occurs.
+     * @since 2.18
+     */
+    public static HttpServer createHttpServer(final URI uri, final ResourceConfig configuration,
+                                              final SSLContext sslContext) {
+        return createHttpServer(uri, new JdkHttpHandlerContainer(configuration),
+                sslContext, true);
+    }
 
+    /**
+     * Create (and possibly start) the {@link HttpServer JDK HttpServer}, eventually {@code HttpServer}'s subclass
+     * {@link HttpsServer JDK HttpsServer} with the JAX-RS / Jersey application deployed on the given {@link URI}.
+     * <p>
+     * The {@code start} flag controls whether or not the returned {@link HttpServer JDK HttpServer} is started.
+     * </p>
+     *
+     * @param uri           the {@link URI uri} on which the Jersey application will be deployed.
+     * @param configuration the Jersey server-side application configuration.
+     * @param sslContext    custom {@link SSLContext} to be passed to the server
+     * @param start         if set to {@code false}, the created server will not be automatically started.
+     * @return Newly created {@link HttpServer}.
+     * @throws ProcessingException thrown when problems during server creation occurs.
+     * @since 2.17
+     */
+    public static HttpServer createHttpServer(final URI uri, final ResourceConfig configuration,
+                                              final SSLContext sslContext, final boolean start) {
+        return createHttpServer(uri,
+                new JdkHttpHandlerContainer(configuration),
+                sslContext,
+                start);
+    }
+
+    /**
+     * Create (and possibly start) the {@link HttpServer JDK HttpServer}, eventually {@code HttpServer}'s subclass
+     * {@link HttpsServer} with the JAX-RS / Jersey application deployed on the given {@link URI}.
+     * <p>
+     * The {@code start} flag controls whether or not the returned {@link HttpServer JDK HttpServer} is started.
+     * </p>
+     *
+     * @param uri               the {@link URI uri} on which the Jersey application will be deployed.
+     * @param configuration     the Jersey server-side application configuration.
+     * @param parentLocator     {@link org.glassfish.hk2.api.ServiceLocator} to become a parent of the locator used by
+     *                          {@link org.glassfish.jersey.server.ApplicationHandler}
+     * @param sslContext        custom {@link SSLContext} to be passed to the server
+     * @param start             if set to {@code false}, the created server will not be automatically started.
+     * @return Newly created {@link HttpServer}.
+     * @throws ProcessingException thrown when problems during server creation occurs.
+     * @since 2.18
+     */
+    public static HttpServer createHttpServer(final URI uri, final ResourceConfig configuration,
+                                              final ServiceLocator parentLocator,
+                                              final SSLContext sslContext, final boolean start) {
+        return createHttpServer(uri,
+                new JdkHttpHandlerContainer(configuration, parentLocator),
+                sslContext,
+                start
+        );
+    }
+
+    private static HttpServer createHttpServer(final URI uri, final JdkHttpHandlerContainer handler,
+                                               final boolean start) {
+        return createHttpServer(uri, handler, null, start);
+    }
+
+    private static HttpServer createHttpServer(final URI uri,
+                                               final JdkHttpHandlerContainer handler,
+                                               final SSLContext sslContext,
+                                               final boolean start) {
         if (uri == null) {
             throw new IllegalArgumentException(LocalizationMessages.ERROR_CONTAINER_URI_NULL());
         }
 
         final String scheme = uri.getScheme();
         final boolean isHttp = "http".equalsIgnoreCase(scheme);
-        if (!isHttp && !"https".equalsIgnoreCase(scheme)) {
+        final boolean isHttps = "https".equalsIgnoreCase(scheme);
+        final HttpsConfigurator httpsConfigurator = sslContext != null ? new HttpsConfigurator(sslContext) : null;
+
+        if (isHttp) {
+            if (httpsConfigurator != null) {
+                // attempt to use https with http scheme
+                LOG.warning(LocalizationMessages.WARNING_CONTAINER_URI_SCHEME_SECURED());
+            }
+        } else if (isHttps) {
+            if (httpsConfigurator == null) {
+                if (start) {
+                    // The SSLContext (via HttpsConfigurator) has to be set before the server starts.
+                    // Starting https server w/o SSL is invalid, it will lead to error anyway.
+                    throw new IllegalArgumentException(LocalizationMessages.ERROR_CONTAINER_HTTPS_NO_SSL());
+                } else {
+                    // Creating the https server w/o SSL context, but not starting it is valid.
+                    // However, server.setHttpsConfigurator() must be called before the start.
+                    LOG.info(LocalizationMessages.INFO_CONTAINER_HTTPS_NO_SSL());
+                }
+            }
+        } else {
             throw new IllegalArgumentException(LocalizationMessages.ERROR_CONTAINER_URI_SCHEME_UNKNOWN(uri));
         }
 
@@ -151,7 +250,7 @@ public final class JdkHttpServerFactory {
         }
 
         final int port = (uri.getPort() == -1)
-                ? (isHttp ? ConfigHelper.DEFAULT_HTTP_PORT : ConfigHelper.DEFAULT_HTTPS_PORT)
+                ? (isHttp ? Container.DEFAULT_HTTP_PORT : Container.DEFAULT_HTTPS_PORT)
                 : uri.getPort();
 
         final HttpServer server;
@@ -161,6 +260,10 @@ public final class JdkHttpServerFactory {
                     : HttpsServer.create(new InetSocketAddress(port), 0);
         } catch (final IOException ioe) {
             throw new ProcessingException(LocalizationMessages.ERROR_CONTAINER_EXCEPTION_IO(), ioe);
+        }
+
+        if (isHttps && httpsConfigurator != null) {
+            ((HttpsServer) server).setHttpsConfigurator(httpsConfigurator);
         }
 
         server.setExecutor(Executors.newCachedThreadPool(new ThreadFactoryBuilder()

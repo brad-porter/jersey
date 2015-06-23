@@ -63,6 +63,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.ContextResolver;
 import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.Providers;
+
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -75,6 +76,7 @@ import org.glassfish.jersey.media.multipart.MultiPart;
 import org.glassfish.jersey.media.multipart.MultiPartProperties;
 import org.glassfish.jersey.message.MessageBodyWorkers;
 import org.glassfish.jersey.message.internal.MediaTypes;
+
 import org.jvnet.mimepull.Header;
 import org.jvnet.mimepull.MIMEConfig;
 import org.jvnet.mimepull.MIMEMessage;
@@ -164,11 +166,12 @@ public class MultiPartReaderClientSide implements MessageBodyReader<MultiPart> {
      * @param mediaType   media type ({@code multipart/*}) of this entity.
      * @param headers     mutable map of HTTP headers for the entire response.
      * @param stream      output stream to which the entity should be written.
-     * @throws java.io.IOException if an I/O error occurs.
-     * @throws javax.ws.rs.WebApplicationException
-     *                             If an HTTP error response needs to be produced (only effective if the response is not
-     *                             committed yet) or if the Content-Disposition header of a {@code multipart/form-data} body part
-     *                             cannot be parsed.
+     * @throws java.io.IOException                 if an I/O error occurs.
+     * @throws javax.ws.rs.WebApplicationException If an HTTP error response needs to be produced (only effective if the response
+     *                                             is not
+     *                                             committed yet) or if the Content-Disposition header of a {@code
+     *                                             multipart/form-data} body part
+     *                                             cannot be parsed.
      */
     public MultiPart readFrom(final Class<MultiPart> type,
                               final Type genericType,
@@ -225,7 +228,7 @@ public class MultiPartReaderClientSide implements MessageBodyReader<MultiPart> {
             fileNameFix = userAgent != null && userAgent.contains(" MSIE ");
         }
 
-        for (final MIMEPart mimePart : mimeMessage.getAttachments()) {
+        for (final MIMEPart mimePart : getMimeParts(mimeMessage)) {
             final BodyPart bodyPart = formData ? new FormDataBodyPart(fileNameFix) : new BodyPart();
 
             // Configure providers.
@@ -238,8 +241,9 @@ public class MultiPartReaderClientSide implements MessageBodyReader<MultiPart> {
 
             try {
                 final String contentType = bodyPart.getHeaders().getFirst("Content-Type");
-                if (contentType != null)
+                if (contentType != null) {
                     bodyPart.setMediaType(MediaType.valueOf(contentType));
+                }
 
                 bodyPart.getContentDisposition();
             } catch (final IllegalArgumentException ex) {
@@ -254,6 +258,26 @@ public class MultiPartReaderClientSide implements MessageBodyReader<MultiPart> {
         }
 
         return multiPart;
+    }
+
+    /**
+     * Get a list of mime part attachments from given mime message. If an exception occurs during parsing the message the parsed
+     * mime parts are closed (any temporary files are deleted).
+     *
+     * @param message mime message to get mime parts from.
+     * @return list of mime part attachments.
+     */
+    private List<MIMEPart> getMimeParts(final MIMEMessage message) {
+        try {
+            return message.getAttachments();
+        } catch (final MIMEParsingException obtainPartsError) {
+            LOGGER.log(Level.FINE, LocalizationMessages.PARSING_ERROR(), obtainPartsError);
+
+            message.close();
+
+            // Re-throw the exception.
+            throw obtainPartsError;
+        }
     }
 
     protected static MediaType unquoteMediaTypeParameters(final MediaType mediaType, final String... parameters) {

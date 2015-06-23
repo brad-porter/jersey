@@ -83,7 +83,9 @@ abstract class AbstractJavaResourceMethodDispatcher implements ResourceMethodDis
      * @param methodHandler  method invocation handler.
      * @param validator      input/output parameter validator.
      */
-    AbstractJavaResourceMethodDispatcher(Invocable resourceMethod, InvocationHandler methodHandler, ConfiguredValidator validator) {
+    AbstractJavaResourceMethodDispatcher(final Invocable resourceMethod,
+                                         final InvocationHandler methodHandler,
+                                         final ConfiguredValidator validator) {
         this.method = resourceMethod.getDefinitionMethod();
         this.methodHandler = methodHandler;
         this.resourceMethod = resourceMethod;
@@ -108,7 +110,6 @@ abstract class AbstractJavaResourceMethodDispatcher implements ResourceMethodDis
      * @param resource resource class instance.
      * @param request  request to be dispatched.
      * @return response for the dispatched request.
-     *
      * @throws ProcessingException in case of a processing error.
      * @see ResourceMethodDispatcher#dispatch(Object, org.glassfish.jersey.server.ContainerRequest)
      */
@@ -122,11 +123,11 @@ abstract class AbstractJavaResourceMethodDispatcher implements ResourceMethodDis
      * @param resource         resource class instance.
      * @param args             input argument values for the invoked Java method.
      * @return invocation result.
-     *
      * @throws ProcessingException (possibly {@link MappableException mappable})
      *                             container exception in case the invocation failed.
      */
-    final Object invoke(final ContainerRequest containerRequest, final Object resource, final Object... args) throws ProcessingException {
+    final Object invoke(final ContainerRequest containerRequest, final Object resource, final Object... args)
+            throws ProcessingException {
         try {
             // Validate resource class & method input parameters.
             if (validator != null) {
@@ -156,8 +157,8 @@ abstract class AbstractJavaResourceMethodDispatcher implements ResourceMethodDis
 
             final SecurityContext securityContext = containerRequest.getSecurityContext();
 
-            final Object invocationResult = (securityContext instanceof SubjectSecurityContext) ?
-                    ((SubjectSecurityContext) securityContext).doAsSubject(invokeMethodAction) : invokeMethodAction.run();
+            final Object invocationResult = (securityContext instanceof SubjectSecurityContext)
+                    ? ((SubjectSecurityContext) securityContext).doAsSubject(invokeMethodAction) : invokeMethodAction.run();
 
             // Validate response entity.
             if (validator != null) {
@@ -182,4 +183,5 @@ abstract class AbstractJavaResourceMethodDispatcher implements ResourceMethodDis
     public String toString() {
         return method.toString();
     }
+
 }

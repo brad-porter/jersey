@@ -58,8 +58,10 @@ import javax.ws.rs.core.Response;
 
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
+import org.glassfish.jersey.test.util.runner.ConcurrentRunner;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -68,6 +70,7 @@ import static org.junit.Assert.assertFalse;
  *
  * @author Miroslav Fuksa
  */
+@RunWith(ConcurrentRunner.class)
 public class PrimitiveTypesTest extends JerseyTest {
     @Override
     protected ResourceConfig configure() {
@@ -77,7 +80,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testInteger() {
         WebTarget web = target().path("test");
-        Response response = web.path("Integer").request().post(Entity.entity(new Integer(5), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Integer").request().post(Entity.entity(5, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Integer(6), response.readEntity(Integer.class));
     }
@@ -101,7 +104,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testLong() {
         WebTarget web = target().path("test");
-        Response response = web.path("Long").request().post(Entity.entity(new Long(5), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Long").request().post(Entity.entity(5L, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Long(6), response.readEntity(Long.class));
     }
@@ -109,9 +112,9 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testPrimitiveLong() {
         WebTarget web = target().path("test");
-        Response response = web.path("long").request().post(Entity.entity(5l, MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("long").request().post(Entity.entity(5L, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
-        assertEquals(6l, (long) response.readEntity(long.class));
+        assertEquals(6L, (long) response.readEntity(long.class));
     }
 
     @Test
@@ -125,7 +128,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testShort() {
         WebTarget web = target().path("test");
-        Response response = web.path("Short").request().post(Entity.entity(new Short((short) 5), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Short").request().post(Entity.entity((short) 5, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Short((short) 6), response.readEntity(Short.class));
     }
@@ -148,7 +151,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testByte() {
         WebTarget web = target().path("test");
-        Response response = web.path("Byte").request().post(Entity.entity(new Byte((byte) 5), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Byte").request().post(Entity.entity((byte) 5, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Byte((byte) 6), response.readEntity(Byte.class));
     }
@@ -171,7 +174,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testFloat() {
         WebTarget web = target().path("test");
-        Response response = web.path("Float").request().post(Entity.entity(new Float(5), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Float").request().post(Entity.entity((float) 5, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Float(6), response.readEntity(Float.class));
     }
@@ -194,7 +197,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testDouble() {
         WebTarget web = target().path("test");
-        Response response = web.path("Double").request().post(Entity.entity(new Double(5), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Double").request().post(Entity.entity((double) 5, MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Double(6), response.readEntity(Double.class));
     }
@@ -217,7 +220,7 @@ public class PrimitiveTypesTest extends JerseyTest {
     @Test
     public void testCharacter() {
         WebTarget web = target().path("test");
-        Response response = web.path("Character").request().post(Entity.entity(new Character('a'), MediaType.TEXT_PLAIN_TYPE));
+        Response response = web.path("Character").request().post(Entity.entity('a', MediaType.TEXT_PLAIN_TYPE));
         assertEquals(200, response.getStatus());
         assertEquals(new Character('b'), response.readEntity(Character.class));
     }
@@ -347,7 +350,7 @@ public class PrimitiveTypesTest extends JerseyTest {
         @POST
         @Path("Byte")
         public Byte postByte(Byte b) {
-            return new Byte((byte) (b + 1));
+            return (byte) (b + 1);
         }
 
         @POST
@@ -360,7 +363,7 @@ public class PrimitiveTypesTest extends JerseyTest {
         @POST
         @Path("Float")
         public Float postFloat(Float f) {
-            return new Float(f + 1f);
+            return f + 1f;
         }
 
 
@@ -373,7 +376,7 @@ public class PrimitiveTypesTest extends JerseyTest {
         @POST
         @Path("Double")
         public Double postDouble(Double d) {
-            return new Double(d + 1d);
+            return d + 1d;
         }
 
 
@@ -389,7 +392,7 @@ public class PrimitiveTypesTest extends JerseyTest {
         public Character postCharacter(Character c) {
             byte b = (byte) (c.charValue());
             b = (byte) (b + 1);
-            return new Character((char) b);
+            return (char) b;
         }
 
         @POST
@@ -410,7 +413,7 @@ public class PrimitiveTypesTest extends JerseyTest {
         @Path("Boolean")
         public Boolean postBoolean(Boolean b) {
             boolean bool = b;
-            return Boolean.valueOf(!bool);
+            return !bool;
         }
 
         @POST
